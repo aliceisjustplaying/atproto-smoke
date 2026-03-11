@@ -1,18 +1,13 @@
 import fs from 'node:fs/promises';
-import {
-  createBringYourOwnDualConfig,
-  createBringYourOwnSingleConfig,
-} from './adapters/bring-your-own.mjs';
-import {
-  createPerlskyDualConfig,
-  createPerlskySingleConfig,
-} from './adapters/perlsky.mjs';
+import { getAdapter, listAdapters } from './adapters/registry.mjs';
 
 const usage = `Usage:
   atproto-smoke run-single [--adapter bring-your-own|perlsky] --config config.json
   atproto-smoke run-dual [--adapter bring-your-own|perlsky] --config config.json
   atproto-smoke validate --mode single|dual [--adapter bring-your-own|perlsky] --config config.json
+  atproto-smoke write-example --mode single|dual [--adapter bring-your-own|perlsky] --output config.json
   atproto-smoke print-example --mode single|dual [--adapter bring-your-own|perlsky]
+  atproto-smoke list-adapters
 
 Notes:
   - bring-your-own is the default adapter
@@ -40,6 +35,10 @@ const parseArgs = (argv) => {
       result.adapter = argv[++i];
       continue;
     }
+    if (arg === '--output') {
+      result.outputPath = argv[++i];
+      continue;
+    }
     if (arg === '--help' || arg === '-h' || arg === 'help') {
       result.help = true;
       continue;
@@ -48,38 +47,6 @@ const parseArgs = (argv) => {
   }
 
   return result;
-};
-
-const createExampleConfig = ({ mode, adapter }) => {
-  const base = {
-    pdsUrl: 'https://your-pds.example',
-    artifactsDir: `data/browser-smoke/${adapter}-${mode}`,
-    targetHandle: 'alice.mosphere.at',
-    strictErrors: true,
-  };
-
-  if (mode === 'single') {
-    return {
-      ...base,
-      editProfile: true,
-      account: {
-        handle: 'smoke-primary.your-pds.example',
-        password: 'replace-me',
-      },
-    };
-  }
-
-  return {
-    ...base,
-    primary: {
-      handle: 'smoke-primary.your-pds.example',
-      password: 'replace-me',
-    },
-    secondary: {
-      handle: 'smoke-secondary.your-pds.example',
-      password: 'replace-me-too',
-    },
-  };
 };
 
 const normalizeMode = (command, mode) => {
@@ -93,15 +60,12 @@ const normalizeMode = (command, mode) => {
 };
 
 const normalizeConfig = ({ mode, adapter, raw }) => {
+  const selectedAdapter = getAdapter(adapter);
   if (mode === 'single') {
-    return adapter === 'perlsky'
-      ? createPerlskySingleConfig(raw)
-      : createBringYourOwnSingleConfig(raw);
+    return selectedAdapter.createSingleConfig(raw);
   }
   if (mode === 'dual') {
-    return adapter === 'perlsky'
-      ? createPerlskyDualConfig(raw)
-      : createBringYourOwnDualConfig(raw);
+    return selectedAdapter.createDualConfig(raw);
   }
   throw new Error(`unsupported mode: ${mode}`);
 };
@@ -111,21 +75,55 @@ const loadJsonConfig = async (configPath) => {
   return JSON.parse(text);
 };
 
+const writeJsonConfig = async (outputPath, payload) => {
+  await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+};
+
+const adapterHelp = () => {
+  return listAdapters()
+    .map((adapter) => {
+      const lines = [
+        `- ${adapter.name}: ${adapter.description}`,
+        `  account strategy: ${adapter.accountStrategy}`,
+      ];
+      for (const note of adapter.notes || []) {
+        lines.push(`  note: ${note}`);
+      }
+      return lines.join('\n');
+    })
+    .join('\n');
+};
+
 export const runCliFromArgv = async (argv = process.argv) => {
   const args = parseArgs(argv);
 
   if (args.help || !args.command) {
-    console.log(usage);
+    console.log(`${usage}\nBuilt-in adapters:\n${adapterHelp()}`);
+    return 0;
+  }
+
+  if (args.command === 'list-adapters') {
+    console.log(adapterHelp());
     return 0;
   }
 
   const mode = normalizeMode(args.command, args.mode);
+  const adapter = getAdapter(args.adapter);
 
-  if (args.command === 'print-example') {
+  if (args.command === 'print-example' || args.command === 'write-example') {
     if (!mode) {
-      throw new Error('print-example requires --mode single|dual');
+      throw new Error(`${args.command} requires --mode single|dual`);
     }
-    console.log(JSON.stringify(createExampleConfig({ mode, adapter: args.adapter }), null, 2));
+    const example = adapter.createExampleConfig({ mode });
+    if (args.command === 'write-example') {
+      if (!args.outputPath) {
+        throw new Error('write-example requires --output PATH');
+      }
+      await writeJsonConfig(args.outputPath, example);
+      console.log(`wrote ${args.outputPath} using adapter ${adapter.name} (${mode})`);
+      return 0;
+    }
+    console.log(JSON.stringify(example, null, 2));
     return 0;
   }
 
@@ -137,7 +135,7 @@ export const runCliFromArgv = async (argv = process.argv) => {
   }
 
   const raw = await loadJsonConfig(args.configPath);
-  const config = normalizeConfig({ mode, adapter: args.adapter, raw });
+  const config = normalizeConfig({ mode, adapter: adapter.name, raw });
 
   if (args.command === 'validate') {
     console.log(JSON.stringify(config, null, 2));

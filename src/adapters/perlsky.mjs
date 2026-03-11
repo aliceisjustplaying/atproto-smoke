@@ -12,6 +12,38 @@ export const PERLSKY_SECONDARY_CLEANUP_PREFIXES = Object.freeze([
   'perlsky browser secondary ',
 ]);
 
+const createPerlskyExampleConfig = ({ mode }) => {
+  const base = {
+    pdsUrl: 'https://perlsky.mosphere.at',
+    artifactsDir: `data/browser-smoke/perlsky-${mode}`,
+    targetHandle: 'alice.mosphere.at',
+    strictErrors: true,
+  };
+
+  if (mode === 'single') {
+    return {
+      ...base,
+      editProfile: true,
+      account: {
+        handle: 'smoke-primary.perlsky.mosphere.at',
+        password: 'replace-me',
+      },
+    };
+  }
+
+  return {
+    ...base,
+    primary: {
+      handle: 'smoke-primary.perlsky.mosphere.at',
+      password: 'replace-me',
+    },
+    secondary: {
+      handle: 'smoke-secondary.perlsky.mosphere.at',
+      password: 'replace-me-too',
+    },
+  };
+};
+
 export const createPerlskyAccountConfig = ({
   role = 'primary',
   ...account
@@ -58,3 +90,16 @@ export const createPerlskyDualConfig = ({
     }),
   });
 };
+
+export const PERLSKY_ADAPTER = Object.freeze({
+  name: 'perlsky',
+  description: 'Use perlsky-flavored defaults like cleanup prefixes and adapter tagging.',
+  accountStrategy: 'existing-accounts-or-bootstrap',
+  notes: [
+    'The standalone suite still expects credentials in the config.',
+    'perlsky-specific account bootstrap and reusable-pair helpers live in perlsky, not in atproto-smoke itself.',
+  ],
+  createSingleConfig: createPerlskySingleConfig,
+  createDualConfig: createPerlskyDualConfig,
+  createExampleConfig: createPerlskyExampleConfig,
+});
