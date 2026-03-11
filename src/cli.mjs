@@ -97,7 +97,13 @@ const adapterHelp = () => {
 export const runCliFromArgv = async (argv = process.argv) => {
   const args = parseArgs(argv);
 
-  if (args.help || !args.command) {
+  if (
+    args.help ||
+    !args.command ||
+    args.command === 'help' ||
+    args.command === '--help' ||
+    args.command === '-h'
+  ) {
     console.log(`${usage}\nBuilt-in adapters:\n${adapterHelp()}`);
     return 0;
   }
