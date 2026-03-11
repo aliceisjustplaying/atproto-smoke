@@ -84,6 +84,8 @@ Current built-ins:
   bootstrap and reusable-pair workflow still live in `perlsky` itself.
 
 The adapter boundary is documented in [docs/ADAPTERS.md](./docs/ADAPTERS.md).
+Representative CLI and `summary.json` examples live in
+[docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md).
 
 ## Extraction Shape
 
