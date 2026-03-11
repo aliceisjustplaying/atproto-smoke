@@ -33,6 +33,8 @@ this repo:
 - settings-depth flows
 - strict artifacts with screenshots, console output, failed requests, failed
   HTTP responses, and recent XRPC traffic
+- bounded per-step timeouts so late browser stalls fail with artifacts instead
+  of hanging forever
 
 DMs are intentionally deferred for now. The current suite is focused on stable
 social, list, and settings interactions first.
@@ -91,7 +93,8 @@ The current config contract is intentionally small:
 
 - suite-level settings:
   `pdsUrl`, `artifactsDir`, `appUrl`, `publicApiUrl`, `targetHandle`,
-  `publicCheckTimeoutMs`, `headless`, `strictErrors`, `publicChecks`,
+  `publicCheckTimeoutMs`, `stepTimeoutMs`, `headless`, `strictErrors`,
+  `publicChecks`,
   `browserExecutablePath`, `adapter`
 - account-level settings:
   `handle`, `password`, `birthdate`, `postText`, `mediaPostText`, `quoteText`,

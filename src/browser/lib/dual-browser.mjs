@@ -145,6 +145,7 @@ export const setupDualBrowser = async ({ config, summary }) => {
 };
 
 export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryPage }) => {
+  const stepTimeoutMs = Number(config.stepTimeoutMs || 120000);
   const pageFor = (name) => (name === 'primary' ? primaryPage : secondaryPage);
 
   const screenshot = async (pageName, name) => {
@@ -180,7 +181,14 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
 
   const step = async (name, fn, { optional = false, pageNames = [] } = {}) => {
     try {
-      const result = await fn();
+      const result = await Promise.race([
+        fn(),
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`step timed out after ${stepTimeoutMs}ms`));
+          }, stepTimeoutMs);
+        }),
+      ]);
       const screenshots = {};
       for (const pageName of pageNames) {
         screenshots[pageName] = await screenshot(pageName, name);

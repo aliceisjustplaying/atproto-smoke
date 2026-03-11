@@ -334,7 +334,14 @@ const {
     'utf8',
   );
   console.log(JSON.stringify(summary, null, 2));
-  await browser.close();
+  await Promise.race([
+    browser.close(),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('browser close timed out after 15000ms')), 15000);
+    }),
+  ]).catch((error) => {
+    summary.notes.push(String(error?.message ?? error));
+  });
   return summary;
 };
 
