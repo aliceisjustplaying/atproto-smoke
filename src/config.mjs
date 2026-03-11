@@ -1,0 +1,182 @@
+const DEFAULTS = {
+  appUrl: 'https://bsky.app',
+  publicApiUrl: 'https://public.api.bsky.app',
+  publicCheckTimeoutMs: 180000,
+  birthdate: '1990-01-01',
+  headless: true,
+  strictErrors: false,
+  publicChecks: true,
+};
+
+const requireString = (value, label) => {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${label} is required`);
+  }
+  return value;
+};
+
+const optionalString = (value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    throw new Error('optional string values must be strings when provided');
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
+const normalizeCleanupPrefixes = (prefixes) => {
+  if (prefixes === undefined) {
+    return [];
+  }
+  if (!Array.isArray(prefixes)) {
+    throw new Error('cleanupPostPrefixes must be an array when provided');
+  }
+  return prefixes
+    .map((value) => {
+      if (typeof value !== 'string') {
+        throw new Error('cleanup post prefixes must be strings');
+      }
+      return value.length ? value : undefined;
+    })
+    .filter(Boolean);
+};
+
+const derivePdsHost = (pdsUrl) => {
+  try {
+    return new URL(pdsUrl).host;
+  } catch {
+    const match = String(pdsUrl).match(/^https?:\/\/([^/]+)/);
+    return match?.[1];
+  }
+};
+
+export const createAccountConfig = ({
+  handle,
+  password,
+  birthdate = DEFAULTS.birthdate,
+  postText,
+  mediaPostText,
+  quoteText,
+  replyText,
+  profileNote,
+  cleanupPostPrefixes,
+  ...rest
+} = {}) => {
+  const normalized = {
+    handle: requireString(handle, 'account.handle'),
+    password: requireString(password, 'account.password'),
+    birthdate: optionalString(birthdate) || DEFAULTS.birthdate,
+    cleanupPostPrefixes: normalizeCleanupPrefixes(cleanupPostPrefixes),
+    ...rest,
+  };
+
+  const post = optionalString(postText);
+  const mediaPost = optionalString(mediaPostText);
+  const quote = optionalString(quoteText);
+  const reply = optionalString(replyText);
+  const note = optionalString(profileNote);
+
+  if (post) {
+    normalized.postText = post;
+  }
+  if (mediaPost) {
+    normalized.mediaPostText = mediaPost;
+  }
+  if (quote) {
+    normalized.quoteText = quote;
+  }
+  if (reply) {
+    normalized.replyText = reply;
+  }
+  if (note) {
+    normalized.profileNote = note;
+  }
+
+  return normalized;
+};
+
+export const createSuiteConfig = ({
+  pdsUrl,
+  pdsHost,
+  artifactsDir,
+  appUrl = DEFAULTS.appUrl,
+  publicApiUrl = DEFAULTS.publicApiUrl,
+  publicCheckTimeoutMs = DEFAULTS.publicCheckTimeoutMs,
+  targetHandle,
+  headless = DEFAULTS.headless,
+  strictErrors = DEFAULTS.strictErrors,
+  publicChecks = DEFAULTS.publicChecks,
+  browserExecutablePath,
+  adapter,
+  ...rest
+} = {}) => {
+  const normalized = {
+    pdsUrl: requireString(pdsUrl, 'pdsUrl'),
+    artifactsDir: requireString(artifactsDir, 'artifactsDir'),
+    appUrl: optionalString(appUrl) || DEFAULTS.appUrl,
+    publicApiUrl: optionalString(publicApiUrl) || DEFAULTS.publicApiUrl,
+    publicCheckTimeoutMs: Number(publicCheckTimeoutMs || DEFAULTS.publicCheckTimeoutMs),
+    headless: !!headless,
+    strictErrors: !!strictErrors,
+    publicChecks: !!publicChecks,
+    ...rest,
+  };
+
+  normalized.pdsHost = optionalString(pdsHost) || derivePdsHost(normalized.pdsUrl);
+  if (!normalized.pdsHost) {
+    throw new Error('pdsHost could not be derived from pdsUrl');
+  }
+
+  const maybeTarget = optionalString(targetHandle);
+  if (maybeTarget) {
+    normalized.targetHandle = maybeTarget;
+  }
+
+  const maybeBrowserExecutablePath = optionalString(browserExecutablePath);
+  if (maybeBrowserExecutablePath) {
+    normalized.browserExecutablePath = maybeBrowserExecutablePath;
+  }
+
+  const maybeAdapter = optionalString(adapter);
+  if (maybeAdapter) {
+    normalized.adapter = maybeAdapter;
+  }
+
+  return normalized;
+};
+
+export const createSingleRunConfig = ({
+  account,
+  editProfile = false,
+  ...rest
+} = {}) => {
+  return {
+    ...createSuiteConfig(rest),
+    ...createAccountConfig(account),
+    editProfile: !!editProfile,
+  };
+};
+
+export const createDualRunConfig = ({
+  primary,
+  secondary,
+  accountSource,
+  ...rest
+} = {}) => {
+  const normalized = {
+    ...createSuiteConfig(rest),
+    primary: createAccountConfig(primary),
+    secondary: createAccountConfig(secondary),
+  };
+
+  const maybeAccountSource = optionalString(accountSource);
+  if (maybeAccountSource) {
+    normalized.accountSource = maybeAccountSource;
+  }
+
+  return normalized;
+};
+
+export const suiteDefaults = Object.freeze({ ...DEFAULTS });

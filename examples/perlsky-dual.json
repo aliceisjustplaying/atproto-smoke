@@ -1,0 +1,14 @@
+{
+  "pdsUrl": "https://perlsky.mosphere.at",
+  "artifactsDir": "data/browser-smoke/perlsky-dual",
+  "targetHandle": "alice.mosphere.at",
+  "strictErrors": true,
+  "primary": {
+    "handle": "smoke-primary.perlsky.mosphere.at",
+    "password": "replace-me"
+  },
+  "secondary": {
+    "handle": "smoke-secondary.perlsky.mosphere.at",
+    "password": "replace-me-too"
+  }
+}

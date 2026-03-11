@@ -1,0 +1,14 @@
+{
+  "pdsUrl": "https://your-pds.example",
+  "artifactsDir": "data/browser-smoke/bring-your-own-dual",
+  "targetHandle": "alice.mosphere.at",
+  "strictErrors": true,
+  "primary": {
+    "handle": "smoke-primary.your-pds.example",
+    "password": "replace-me"
+  },
+  "secondary": {
+    "handle": "smoke-secondary.your-pds.example",
+    "password": "replace-me-too"
+  }
+}

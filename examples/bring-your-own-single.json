@@ -1,0 +1,11 @@
+{
+  "pdsUrl": "https://your-pds.example",
+  "artifactsDir": "data/browser-smoke/bring-your-own-single",
+  "targetHandle": "alice.mosphere.at",
+  "strictErrors": true,
+  "editProfile": true,
+  "account": {
+    "handle": "smoke-primary.your-pds.example",
+    "password": "replace-me"
+  }
+}

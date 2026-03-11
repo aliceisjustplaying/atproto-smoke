@@ -1,0 +1,254 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { chromium } from './playwright-runtime.mjs';
+
+const ignoredConsole = [
+  /events\.bsky\.app\/.*ERR_BLOCKED_BY_CLIENT/i,
+  /slider-vertical/i,
+  /Password field is not contained in a form/i,
+  /Failed to load resource: the server responded with a status of 400 \(\)/i,
+];
+
+const ignoredRequestFailure = [
+  { url: /events\.bsky\.app\//i, error: /ERR_(BLOCKED_BY_CLIENT|ABORTED)/i },
+  { url: /workers\.dev\/api\/config/i, error: /ERR_ABORTED/i },
+  { url: /app-config\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
+  { url: /live-events\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
+  { url: /events\.bsky\.app\/t/i, error: /ERR_ABORTED/i },
+  { url: /events\.bsky\.app\/gb\/api\/features\//i, error: /ERR_ABORTED/i },
+  { url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts|.*\.vtt)/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/app\.bsky\.graph\.(?:muteActor|unmuteActor)/i, error: /ERR_ABORTED/i },
+];
+
+const ignoredHttpFailure = [
+  { url: /c\.1password\.com\/richicons/i, status: 404 },
+  { url: /\/xrpc\/app\.bsky\.graph\.getList\?/, status: 400 },
+];
+
+const browserCandidates = async (config) => {
+  const base = {
+    headless: config.headless !== false,
+    chromiumSandbox: true,
+  };
+  const candidates = [];
+  if (config.browserExecutablePath) {
+    candidates.push({
+      label: `executable:${config.browserExecutablePath}`,
+      options: { ...base, executablePath: config.browserExecutablePath },
+    });
+  }
+  const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  if (!config.browserExecutablePath) {
+    try {
+      await fs.access(systemChrome);
+      candidates.push({
+        label: 'system-google-chrome',
+        options: { ...base, executablePath: systemChrome },
+      });
+    } catch {
+      // Fall back to Playwright-managed Chromium below.
+    }
+  }
+  candidates.push({
+    label: 'playwright-chromium',
+    options: { ...base, channel: 'chromium' },
+  });
+  return candidates;
+};
+
+const launchBrowser = async (config, summary) => {
+  const errors = [];
+  for (const candidate of await browserCandidates(config)) {
+    try {
+      const browser = await chromium.launch(candidate.options);
+      summary.notes.push(`browser launch candidate succeeded: ${candidate.label}`);
+      return browser;
+    } catch (error) {
+      errors.push(`${candidate.label}: ${String(error?.message ?? error)}`);
+    }
+  }
+  throw new Error(`unable to launch browser via any candidate: ${errors.join(' | ')}`);
+};
+
+const attachPageLogging = (summary, name, page) => {
+  page.on('console', (msg) => {
+    summary.console.push({
+      page: name,
+      type: msg.type(),
+      text: msg.text(),
+    });
+  });
+
+  page.on('pageerror', (error) => {
+    summary.pageErrors.push({
+      page: name,
+      message: String(error?.message ?? error),
+      stack: error?.stack,
+    });
+  });
+
+  page.on('requestfailed', (req) => {
+    summary.requestFailures.push({
+      page: name,
+      url: req.url(),
+      method: req.method(),
+      errorText: req.failure()?.errorText ?? 'unknown',
+    });
+  });
+
+  page.on('response', (res) => {
+    const status = res.status();
+    if (res.url().includes('/xrpc/')) {
+      summary.xrpc.push({
+        page: name,
+        url: res.url(),
+        status,
+        method: res.request().method(),
+      });
+      if (summary.xrpc.length > 300) {
+        summary.xrpc.shift();
+      }
+    }
+    if (status >= 400) {
+      summary.httpFailures.push({
+        page: name,
+        url: res.url(),
+        status,
+        method: res.request().method(),
+      });
+    }
+  });
+};
+
+export const setupDualBrowser = async ({ config, summary }) => {
+  const browser = await launchBrowser(config, summary);
+  const primaryContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
+  const secondaryContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
+  const primaryPage = await primaryContext.newPage();
+  const secondaryPage = await secondaryContext.newPage();
+
+  attachPageLogging(summary, 'primary', primaryPage);
+  attachPageLogging(summary, 'secondary', secondaryPage);
+
+  return {
+    browser,
+    primaryContext,
+    secondaryContext,
+    primaryPage,
+    secondaryPage,
+  };
+};
+
+export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryPage }) => {
+  const pageFor = (name) => (name === 'primary' ? primaryPage : secondaryPage);
+
+  const screenshot = async (pageName, name) => {
+    const page = pageFor(pageName);
+    const file = path.join(config.artifactsDir, `${name}-${pageName}.png`);
+    await page.screenshot({ path: file, fullPage: true });
+    return file;
+  };
+
+  const recordStep = (name, status, extra = {}) => {
+    summary.steps.push({
+      name,
+      status,
+      at: new Date().toISOString(),
+      ...extra,
+    });
+  };
+
+  const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
+
+  const isIgnoredConsole = (entry) =>
+    ignoredConsole.some((pattern) => pattern.test(entry.text || ''));
+
+  const isIgnoredRequestFailure = (entry) =>
+    ignoredRequestFailure.some(
+      (rule) => rule.url.test(entry.url || '') && rule.error.test(entry.errorText || ''),
+    );
+
+  const isIgnoredHttpFailure = (entry) =>
+    ignoredHttpFailure.some(
+      (rule) => rule.url.test(entry.url || '') && (!rule.status || rule.status === entry.status),
+    );
+
+  const step = async (name, fn, { optional = false, pageNames = [] } = {}) => {
+    try {
+      const result = await fn();
+      const screenshots = {};
+      for (const pageName of pageNames) {
+        screenshots[pageName] = await screenshot(pageName, name);
+      }
+      recordStep(name, 'ok', { screenshots, ...(result ?? {}) });
+      return result;
+    } catch (error) {
+      const screenshots = {};
+      for (const pageName of pageNames) {
+        screenshots[pageName] = await screenshot(pageName, `${name}-error`).catch(() => undefined);
+      }
+      recordStep(name, optional ? 'skipped' : 'failed', {
+        screenshots,
+        error: String(error?.message ?? error),
+      });
+      if (!optional) {
+        throw error;
+      }
+      return null;
+    }
+  };
+
+  const wait = async (page, ms) => {
+    await page.waitForTimeout(ms);
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const buttonText = async (locator) => {
+    const label = await locator.getAttribute('aria-label');
+    if (label && label.trim()) {
+      return label.trim();
+    }
+    const text = await locator.innerText().catch(() => '');
+    return text.trim();
+  };
+
+  const dismissBlockingOverlays = async (page) => {
+    const backdrop = page.locator('[aria-label*="click to close"]').last();
+    if (await backdrop.count()) {
+      await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
+      await wait(page, 400);
+    }
+
+    const dialog = page.locator('[role="dialog"][aria-modal="true"]').last();
+    if (await dialog.count()) {
+      const close = dialog.getByRole('button', { name: /close/i }).last();
+      if (await close.count()) {
+        await close.click({ noWaitAfter: true }).catch(() => undefined);
+        await wait(page, 400);
+      }
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await wait(page, 400);
+    }
+  };
+
+  return {
+    pageFor,
+    screenshot,
+    recordStep,
+    normalizeText,
+    isIgnoredConsole,
+    isIgnoredRequestFailure,
+    isIgnoredHttpFailure,
+    step,
+    wait,
+    sleep,
+    buttonText,
+    dismissBlockingOverlays,
+  };
+};
