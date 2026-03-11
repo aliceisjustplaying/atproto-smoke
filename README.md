@@ -37,6 +37,11 @@ Five-minute path for a non-Perl PDS:
 
 `perlsky` consumes this suite as an external checkout.
 
+`perlsky` lives here:
+
+- https://github.com/aliceisjustplaying/perlsky
+- https://tangled.org/alice.mosphere.at/perlsky
+
 If you keep the repos side by side like this:
 
 ```text
