@@ -13,7 +13,8 @@ minting fresh smoke actors on every run.
 ```sh
 npm install
 npx playwright install chromium
-node bin/atproto-smoke.mjs print-example --mode dual > config.json
+node bin/atproto-smoke.mjs list-adapters
+node bin/atproto-smoke.mjs write-example --mode dual --output config.json
 $EDITOR config.json
 node bin/atproto-smoke.mjs run-dual --config config.json
 ```
@@ -21,6 +22,16 @@ node bin/atproto-smoke.mjs run-dual --config config.json
 For the lowest-friction path, point the suite at an existing PDS and two
 existing accounts. The package is intentionally adapter-friendly, but
 bring-your-own accounts are the default path for non-Perl PDS implementations.
+
+Five-minute path for a non-Perl PDS:
+
+1. Clone `atproto-smoke`.
+2. Run `npm install`.
+3. Run `npx playwright install chromium`.
+4. Write a config with `write-example --mode dual --output config.json`.
+5. Replace the example `pdsUrl`, handles, and passwords with real credentials.
+6. Run `node bin/atproto-smoke.mjs validate --mode dual --config config.json`.
+7. Run `node bin/atproto-smoke.mjs run-dual --config config.json`.
 
 ## Using From perlsky
 
@@ -55,6 +66,25 @@ this repo:
 DMs are intentionally deferred for now. The current suite is focused on stable
 social, list, and settings interactions first.
 
+## Built-in Adapters
+
+List them at any time with:
+
+```sh
+node bin/atproto-smoke.mjs list-adapters
+```
+
+Current built-ins:
+
+- `bring-your-own`
+  The default, lowest-friction mode for any PDS that already has one or two
+  accounts you can log into.
+- `perlsky`
+  A thin adapter for `perlsky` defaults such as cleanup prefixes. The account
+  bootstrap and reusable-pair workflow still live in `perlsky` itself.
+
+The adapter boundary is documented in [docs/ADAPTERS.md](./docs/ADAPTERS.md).
+
 ## Extraction Shape
 
 The target standalone project shape is:
@@ -73,6 +103,8 @@ The package now has its own CLI entrypoint:
 
 ```sh
 node atproto-smoke/bin/atproto-smoke.mjs print-example --mode dual
+node atproto-smoke/bin/atproto-smoke.mjs write-example --mode dual --output config.json
+node atproto-smoke/bin/atproto-smoke.mjs list-adapters
 node atproto-smoke/bin/atproto-smoke.mjs validate --mode dual --config atproto-smoke/examples/bring-your-own-dual.json
 node atproto-smoke/bin/atproto-smoke.mjs run-dual --config atproto-smoke/examples/bring-your-own-dual.json
 ```
@@ -96,14 +128,7 @@ Provisioning is intentionally adapter-specific. That means `perlsky` can keep a
 helpful invite/bootstrap path, while other PDSes like `rsky` or `pegasus` can
 add their own adapters without changing the core browser flows.
 
-## Current Adapter Contract
-
-The helpers in `src/` model two layers:
-
-- `adapters/bring-your-own.mjs`
-  For the lowest-friction mode where callers supply existing credentials
-- `adapters/perlsky.mjs`
-  For `perlsky`-specific defaults like cleanup prefixes and adapter tagging
+## Config Surface
 
 The current config contract is intentionally small:
 
