@@ -1,10 +1,12 @@
 # atproto-smoke
 
-This directory is the extraction staging area for a standalone `bsky.app`
-compatibility smoke suite that can be used by multiple PDS implementations, not
-just `perlsky`. The browser runtime now lives here, while the old
-`tools/browser-automation/*` paths remain as thin compatibility wrappers for
-the current `perlsky` workflow.
+`atproto-smoke` is a standalone `bsky.app` compatibility smoke suite for AT
+Protocol PDS implementations. It is intended to be useful across multiple PDS
+projects, not just `perlsky`.
+
+Today the suite focuses on real browser-driven interoperability through
+`bsky.app`, AppView-backed reads, and a reusable-account workflow that avoids
+minting fresh smoke actors on every run.
 
 ## Quickstart
 
@@ -19,6 +21,20 @@ node bin/atproto-smoke.mjs run-dual --config config.json
 For the lowest-friction path, point the suite at an existing PDS and two
 existing accounts. The package is intentionally adapter-friendly, but
 bring-your-own accounts are the default path for non-Perl PDS implementations.
+
+## Using From perlsky
+
+`perlsky` consumes this suite as an external checkout.
+
+If you keep the repos side by side like this:
+
+```text
+.../perlsky
+.../atproto-smoke
+```
+
+then `script/perlsky-browser-smoke` will find `atproto-smoke` automatically.
+Otherwise set `PERLSKY_BROWSER_SUITE_ROOT=/path/to/atproto-smoke`.
 
 ## Current Scope
 
@@ -47,9 +63,9 @@ The target standalone project shape is:
 2. A bring-your-own-accounts mode with minimal configuration
 3. Thin per-PDS adapters for provisioning and implementation-specific defaults
 
-The generic runtime, config builders, and adapter helpers now live here. The
-older `tools/browser-automation/` entrypoints simply forward into this package
-so the existing repo scripts keep working during the extraction.
+The generic runtime, config builders, and adapter helpers live here. `perlsky`
+keeps thin wrapper entrypoints so its existing local workflow still works while
+the suite itself evolves independently.
 
 ## Current CLI
 
@@ -82,7 +98,7 @@ add their own adapters without changing the core browser flows.
 
 ## Current Adapter Contract
 
-The staging helpers in `src/` model two layers:
+The helpers in `src/` model two layers:
 
 - `adapters/bring-your-own.mjs`
   For the lowest-friction mode where callers supply existing credentials
@@ -124,7 +140,7 @@ the right protocol shapes?" and "does it still behave correctly through
 ## Planned Next Steps
 
 - keep `script/perlsky-browser-smoke` as a thin `perlsky` adapter over this
-  generic package
+  package
 - add a repo-independent install story once the extracted package boundary
   settles
 - add direct API/AppView contract tests as the first major v2 expansion
