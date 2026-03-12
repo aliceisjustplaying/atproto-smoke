@@ -29,4 +29,4 @@ Type "sh data/browser-smoke/demo-replay.sh"
 Show
 
 Enter
-Sleep 80s
+Sleep 120s
