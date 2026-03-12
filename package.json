@@ -1,6 +1,6 @@
 {
   "name": "atproto-smoke",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "ATProto PDS compatibility smoke and end-to-end browser checks",
   "type": "module",
