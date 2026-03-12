@@ -1,180 +1,70 @@
 # atproto-smoke
 
-`atproto-smoke` is a standalone `bsky.app` compatibility smoke suite for AT
-Protocol PDS implementations. It is intended to be useful across multiple PDS
-projects, not just `perlsky`.
+Browser-driven smoke tests for any AT Protocol PDS. Point it at your server, give it two accounts, and it will log into `bsky.app` and exercise the real social flows — posting, following, lists, notifications, settings, and more.
 
-Today the suite focuses on real browser-driven interoperability through
-`bsky.app`, AppView-backed reads, and a reusable-account workflow that avoids
-minting fresh smoke actors on every run.
+It grew out of [perlsky](https://github.com/aliceisjustplaying/perlsky) but is designed to work with any PDS implementation.
 
-## Quickstart
+## Quick start
 
 ```sh
 npm install
 npx playwright install chromium
-node bin/atproto-smoke.mjs list-adapters
+
+# generate a config, fill in your PDS URL and credentials
 node bin/atproto-smoke.mjs write-example --mode dual --output config.json
 $EDITOR config.json
+
+# validate and run
+node bin/atproto-smoke.mjs validate --mode dual --config config.json
 node bin/atproto-smoke.mjs run-dual --config config.json
 ```
 
-For the lowest-friction path, point the suite at an existing PDS and two
-existing accounts. The package is intentionally adapter-friendly, but
-bring-your-own accounts are the default path for non-Perl PDS implementations.
+That's it. Provide a `pdsUrl` and two account credentials, and the suite handles the rest. Run commands print per-step progress to `stderr` and write a JSON summary to `stdout` (`--json-only` for machine-readable output only).
 
-Five-minute path for a non-Perl PDS:
+## What it covers
 
-1. Clone `atproto-smoke`.
-2. Run `npm install`.
-3. Run `npx playwright install chromium`.
-4. Write a config with `write-example --mode dual --output config.json`.
-5. Replace the example `pdsUrl`, handles, and passwords with real credentials.
-6. Run `node bin/atproto-smoke.mjs validate --mode dual --config config.json`.
-7. Run `node bin/atproto-smoke.mjs run-dual --config config.json`.
+- Post creation (text and image), like, repost, quote, reply, bookmark, follow/unfollow
+- Profile edit and avatar upload
+- List lifecycle (create, edit, add/remove members, delete)
+- Notification checks
+- Settings-depth flows
+- Signed-in profile reload with follow/follower count assertions
+- Mute/unmute, block/unblock, report draft
 
-## Using From perlsky
+Every run produces screenshots, console output, failed requests, HTTP failures, and recent XRPC traffic as artifacts. Steps have bounded timeouts so a hung browser fails with artifacts instead of hanging forever.
 
-`perlsky` consumes this suite as an external checkout.
+DMs are intentionally deferred — the current suite is focused on stable social, list, and settings interactions first.
 
-`perlsky` lives here:
+## Adapters
 
-- https://github.com/aliceisjustplaying/perlsky
-- https://tangled.org/alice.mosphere.at/perlsky
+The suite ships with built-in adapters for different PDS implementations:
 
-If you keep the repos side by side like this:
+```sh
+node bin/atproto-smoke.mjs list-adapters
+```
+
+- **`bring-your-own`** — the default. Works with any PDS that has accounts you can log into.
+- **`perlsky`** — thin adapter for `perlsky`-specific defaults like cleanup prefixes.
+
+Other PDS projects (rsky, pegasus, etc.) can add their own adapters without changing the core browser flows. The adapter contract is documented in [docs/ADAPTERS.md](./docs/ADAPTERS.md).
+
+## Using from perlsky
+
+If you keep the repos side by side, `perlsky` finds this checkout automatically:
 
 ```text
 .../perlsky
 .../atproto-smoke
 ```
 
-then `script/perlsky-browser-smoke` will find `atproto-smoke` automatically.
 Otherwise set `PERLSKY_BROWSER_SUITE_ROOT=/path/to/atproto-smoke`.
 
-## Current Scope
+## Config
 
-The existing browser automation is already strong enough to be useful outside
-this repo:
+The config surface is intentionally small — suite-level settings (`pdsUrl`, `artifactsDir`, `headless`, `strictErrors`, `targetHandle`, `remoteReplyPostUrl`, etc.) and per-account settings (`handle`, `password`, `postText`, `cleanupPostPrefixes`, etc.). `pdsHost` is derived from `pdsUrl` automatically.
 
-- reusable-account `bsky.app` smoke flows
-- post, image post, like, repost, quote, reply, bookmark, follow
-- list lifecycle
-- profile edit and avatar upload
-- notifications checks
-- settings-depth flows
-- strict artifacts with screenshots, console output, failed requests, failed
-  HTTP responses, and recent XRPC traffic
-- bounded per-step timeouts so late browser stalls fail with artifacts instead
-  of hanging forever
+Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md) for representative CLI output and `summary.json` shape.
 
-DMs are intentionally deferred for now. The current suite is focused on stable
-social, list, and settings interactions first.
+## Future direction
 
-## Built-in Adapters
-
-List them at any time with:
-
-```sh
-node bin/atproto-smoke.mjs list-adapters
-```
-
-Current built-ins:
-
-- `bring-your-own`
-  The default, lowest-friction mode for any PDS that already has one or two
-  accounts you can log into.
-- `perlsky`
-  A thin adapter for `perlsky` defaults such as cleanup prefixes. The account
-  bootstrap and reusable-pair workflow still live in `perlsky` itself.
-
-The adapter boundary is documented in [docs/ADAPTERS.md](./docs/ADAPTERS.md).
-Representative CLI and `summary.json` examples live in
-[docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md).
-
-## Extraction Shape
-
-The target standalone project shape is:
-
-1. Generic core browser flows and artifact handling
-2. A bring-your-own-accounts mode with minimal configuration
-3. Thin per-PDS adapters for provisioning and implementation-specific defaults
-
-The generic runtime, config builders, and adapter helpers live here. `perlsky`
-keeps thin wrapper entrypoints so its existing local workflow still works while
-the suite itself evolves independently.
-
-## Current CLI
-
-The package now has its own CLI entrypoint:
-
-```sh
-node atproto-smoke/bin/atproto-smoke.mjs print-example --mode dual
-node atproto-smoke/bin/atproto-smoke.mjs write-example --mode dual --output config.json
-node atproto-smoke/bin/atproto-smoke.mjs list-adapters
-node atproto-smoke/bin/atproto-smoke.mjs validate --mode dual --config atproto-smoke/examples/bring-your-own-dual.json
-node atproto-smoke/bin/atproto-smoke.mjs run-dual --config atproto-smoke/examples/bring-your-own-dual.json
-```
-
-Examples live in [examples/](./examples):
-
-- `bring-your-own-single.json`
-- `bring-your-own-dual.json`
-- `perlsky-dual.json`
-
-## Minimal Configuration Goal
-
-The default experience for other PDS developers should be:
-
-- provide a `pdsUrl`
-- provide one or two existing account credentials
-- optionally provide a `targetHandle`
-- run the suite against `bsky.app`
-
-Provisioning is intentionally adapter-specific. That means `perlsky` can keep a
-helpful invite/bootstrap path, while other PDSes like `rsky` or `pegasus` can
-add their own adapters without changing the core browser flows.
-
-## Config Surface
-
-The current config contract is intentionally small:
-
-- suite-level settings:
-  `pdsUrl`, `artifactsDir`, `appUrl`, `publicApiUrl`, `targetHandle`,
-  `publicCheckTimeoutMs`, `stepTimeoutMs`, `headless`, `strictErrors`,
-  `publicChecks`,
-  `browserExecutablePath`, `adapter`
-- account-level settings:
-  `handle`, `password`, `birthdate`, `postText`, `mediaPostText`, `quoteText`,
-  `replyText`, `profileNote`, `cleanupPostPrefixes`
-
-`pdsHost` is derived automatically from `pdsUrl`, so callers do not need any
-perlsky-specific host-setting knowledge just to point the browser at a custom
-PDS.
-
-## V2 Ideas
-
-The long-term direction is a test pyramid, not a browser-only harness and not a
-pure endpoint-only harness:
-
-1. direct PDS/AppView contract tests
-2. cross-service integration checks
-3. a thinner `bsky.app` smoke on top
-
-The browser layer stays because it catches real `social-app` assumptions and
-AppView proxying issues. The direct API/AppView layers belong underneath it so
-regressions become easier to debug and less brittle when the UI changes.
-
-In other words: this project should eventually answer both "does my PDS return
-the right protocol shapes?" and "does it still behave correctly through
-`bsky.app` and AppView-backed reads?".
-
-## Planned Next Steps
-
-- keep `script/perlsky-browser-smoke` as a thin `perlsky` adapter over this
-  package
-- add a repo-independent install story once the extracted package boundary
-  settles
-- add direct API/AppView contract tests as the first major v2 expansion
-- revisit a JS-to-TS migration later, after the standalone package boundary is
-  stable
+The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real `social-app` assumptions that API tests miss.
