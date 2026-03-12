@@ -77,4 +77,4 @@ Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./d
 
 ## Future direction
 
-The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real `social-app` assumptions that API tests miss.
+The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real social-app assumptions that API tests miss.
