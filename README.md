@@ -4,6 +4,15 @@ Browser-driven smoke tests for any AT Protocol PDS. Point it at your server, giv
 
 It grew out of [perlsky](https://github.com/aliceisjustplaying/perlsky) but is designed to work with any PDS implementation.
 
+![atproto-smoke demo](assets/demo.gif)
+
+<details>
+<summary>What it looks like in bsky.app</summary>
+
+![bsky.app profile during smoke run](assets/bsky-profile-screenshot.png)
+
+</details>
+
 ## Quick start
 
 ```sh

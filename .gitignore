@@ -3,3 +3,5 @@ playwright-report/
 test-results/
 data/
 .DS_Store
+config.json
+/demo.gif
