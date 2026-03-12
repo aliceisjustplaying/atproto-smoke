@@ -1,5 +1,6 @@
 import { BRING_YOUR_OWN_ADAPTER } from './bring-your-own.mjs';
 import { PERLSKY_ADAPTER } from './perlsky.mjs';
+import { TRANQUIL_PDS_ADAPTER } from './tranquil-pds.mjs';
 
 /**
  * Adapter definitions normalize raw user config into smoke-suite config.
@@ -15,6 +16,7 @@ import { PERLSKY_ADAPTER } from './perlsky.mjs';
 export const ADAPTERS = Object.freeze({
   [BRING_YOUR_OWN_ADAPTER.name]: BRING_YOUR_OWN_ADAPTER,
   [PERLSKY_ADAPTER.name]: PERLSKY_ADAPTER,
+  [TRANQUIL_PDS_ADAPTER.name]: TRANQUIL_PDS_ADAPTER,
 });
 
 export const ADAPTER_NAMES = Object.freeze(Object.keys(ADAPTERS));

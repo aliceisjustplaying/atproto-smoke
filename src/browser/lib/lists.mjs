@@ -144,6 +144,20 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     await openAddPeopleToList(page);
     await searchAddPeopleList(page, handle);
     const add = page.getByRole('button', { name: /add user to list/i }).last();
+    if (!(await add.count())) {
+      const shortHandle = handle.replace(/^@/, '');
+      const profileLink = page
+        .locator('[role="dialog"]')
+        .last()
+        .getByRole('link', { name: new RegExp(`@?${shortHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') })
+        .last();
+      if (await profileLink.count()) {
+        throw new Error(
+          `search result for @${shortHandle} rendered in "Add people to list" modal, but no add action was available`,
+        );
+      }
+      throw new Error(`no add action was available for @${shortHandle} in "Add people to list" modal`);
+    }
     await add.click({ noWaitAfter: true });
     await wait(page, 2000);
     const remove = page.getByRole('button', { name: /remove user from list/i }).last();

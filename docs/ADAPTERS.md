@@ -56,6 +56,15 @@ cleanup prefixes and adapter tagging.
 `perlsky` still owns the higher-level workflows around invites, reusable smoke
 pairs, and local wrappers. Those helpers do not live in `atproto-smoke`.
 
+### `tranquil-pds`
+
+Use the same core browser flows, but apply `tranquil-pds`-specific defaults
+such as cleanup prefixes, adapter tagging, and hosted-handle examples.
+
+`tranquil-pds` can self-register accounts over the standard AT Protocol
+create-account endpoint, but the bootstrap workflow still lives outside the
+generic smoke suite.
+
 ## Minimal Adapter Contract
 
 The current registry lives in `src/adapters/registry.mjs`. A built-in adapter

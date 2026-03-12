@@ -10,7 +10,8 @@
     "print-example:dual": "node bin/atproto-smoke.mjs print-example --mode dual",
     "validate:example:single": "node bin/atproto-smoke.mjs validate --mode single --config examples/bring-your-own-single.json",
     "validate:example:dual": "node bin/atproto-smoke.mjs validate --mode dual --config examples/bring-your-own-dual.json",
-    "validate:example:perlsky": "node bin/atproto-smoke.mjs validate --mode dual --adapter perlsky --config examples/perlsky-dual.json"
+    "validate:example:perlsky": "node bin/atproto-smoke.mjs validate --mode dual --adapter perlsky --config examples/perlsky-dual.json",
+    "validate:example:tranquil-pds": "node bin/atproto-smoke.mjs validate --mode dual --adapter tranquil-pds --config examples/tranquil-pds-dual.json"
   },
   "engines": {
     "node": ">=20"
@@ -31,6 +32,7 @@
     "./config": "./src/config.mjs",
     "./adapters/bring-your-own": "./src/adapters/bring-your-own.mjs",
     "./adapters/perlsky": "./src/adapters/perlsky.mjs",
+    "./adapters/tranquil-pds": "./src/adapters/tranquil-pds.mjs",
     "./adapters/registry": "./src/adapters/registry.mjs",
     "./browser/run-single": "./src/browser/run-single.mjs",
     "./browser/run-dual": "./src/browser/run-dual.mjs",

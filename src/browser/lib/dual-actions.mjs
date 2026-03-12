@@ -91,9 +91,12 @@ export const createDualActions = ({
         text: normalize(node.textContent || ''),
       }));
       const pick = (pattern) => entries.find((entry) => pattern.test(entry.href))?.text;
+      const bodyText = normalize(document.body?.innerText || '');
+      const followersFallback = bodyText.match(/([0-9][0-9.,]*\s*[KMB]?)\s+followers?/i)?.[0];
+      const followsFallback = bodyText.match(/([0-9][0-9.,]*\s*[KMB]?)\s+(?:following|follows?)/i)?.[0];
       return {
-        followersText: pick(/\/followers(?:[/?#]|$)/i),
-        followsText: pick(/\/follows(?:[/?#]|$)/i),
+        followersText: pick(/\/followers(?:[/?#]|$)/i) || followersFallback,
+        followsText: pick(/\/follows(?:[/?#]|$)/i) || followsFallback,
       };
     });
 

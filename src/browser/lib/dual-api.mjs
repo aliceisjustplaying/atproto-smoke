@@ -47,12 +47,27 @@ export const createDualApiHelpers = ({ config }) => {
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
     }
-    return fetchJson(url.toString(), {
+    const run = (extraHeaders = {}) => fetchJson(url.toString(), {
       method,
-      headers,
+      headers: {
+        ...headers,
+        ...extraHeaders,
+      },
       timeoutMs,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    const result = await run();
+    if (
+      !result.ok &&
+      result.status === 501 &&
+      nsid.startsWith('app.bsky.') &&
+      /atproto-proxy/i.test(result.text || '')
+    ) {
+      return run({
+        'atproto-proxy': 'did:web:api.bsky.app#bsky_appview',
+      });
+    }
+    return result;
   };
 
   const listOwnRecords = async (account, collection, limit = 100) => {

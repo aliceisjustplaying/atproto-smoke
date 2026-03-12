@@ -55,6 +55,7 @@ node bin/atproto-smoke.mjs list-adapters
 
 - **`bring-your-own`** — the default. Works with any PDS that has accounts you can log into.
 - **`perlsky`** — thin adapter for `perlsky`-specific defaults like cleanup prefixes.
+- **`tranquil-pds`** — thin adapter for `tranquil-pds`-specific defaults like cleanup prefixes and hosted-handle examples.
 
 Other PDS projects (rsky, pegasus, etc.) can add their own adapters without changing the core browser flows. The adapter contract is documented in [docs/ADAPTERS.md](./docs/ADAPTERS.md).
 

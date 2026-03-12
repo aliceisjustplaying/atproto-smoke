@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
-import { getAdapter, listAdapters } from './adapters/registry.mjs';
+import { ADAPTER_NAMES, getAdapter, listAdapters } from './adapters/registry.mjs';
+
+const adapterUsage = ADAPTER_NAMES.join('|');
 
 const usage = `Usage:
-  atproto-smoke run-single [--adapter bring-your-own|perlsky] --config config.json
-  atproto-smoke run-dual [--adapter bring-your-own|perlsky] --config config.json
-  atproto-smoke validate --mode single|dual [--adapter bring-your-own|perlsky] --config config.json
-  atproto-smoke write-example --mode single|dual [--adapter bring-your-own|perlsky] --output config.json
-  atproto-smoke print-example --mode single|dual [--adapter bring-your-own|perlsky]
+  atproto-smoke run-single [--adapter ${adapterUsage}] --config config.json
+  atproto-smoke run-dual [--adapter ${adapterUsage}] --config config.json
+  atproto-smoke validate --mode single|dual [--adapter ${adapterUsage}] --config config.json
+  atproto-smoke write-example --mode single|dual [--adapter ${adapterUsage}] --output config.json
+  atproto-smoke print-example --mode single|dual [--adapter ${adapterUsage}]
   atproto-smoke list-adapters
 
 Notes:

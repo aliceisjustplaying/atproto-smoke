@@ -1,0 +1,14 @@
+{
+  "pdsUrl": "https://tranquil.mosphere.at",
+  "artifactsDir": "data/browser-smoke/tranquil-pds-dual",
+  "targetHandle": "alice.tranquil.mosphere.at",
+  "strictErrors": true,
+  "primary": {
+    "handle": "smoke-primary.tranquil.mosphere.at",
+    "password": "replace-me"
+  },
+  "secondary": {
+    "handle": "smoke-secondary.tranquil.mosphere.at",
+    "password": "replace-me-too"
+  }
+}
