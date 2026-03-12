@@ -14,6 +14,21 @@ export const createDualActions = ({
   xrpcJson,
   avatarPngBase64,
 }) => {
+  const parseCompactCount = (raw) => {
+    if (typeof raw !== 'string') {
+      return undefined;
+    }
+    const normalized = raw.replace(/,/g, '').trim();
+    const match = normalized.match(/^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i);
+    if (!match) {
+      return undefined;
+    }
+    const base = Number(match[1]);
+    const suffix = (match[2] || '').toUpperCase();
+    const multiplier = suffix === 'K' ? 1_000 : suffix === 'M' ? 1_000_000 : suffix === 'B' ? 1_000_000_000 : 1;
+    return Math.round(base * multiplier);
+  };
+
   const ensureAvatarFixture = async () => {
     const file = path.join(config.artifactsDir, 'avatar-fixture.png');
     await fs.writeFile(file, Buffer.from(avatarPngBase64, 'base64'));
@@ -66,6 +81,103 @@ export const createDualActions = ({
     const shortHandle = handle.replace(/^@/, '');
     const handleText = shortHandle.startsWith('@') ? shortHandle : `@${shortHandle}`;
     await page.getByText(handleText).first().waitFor({ state: 'visible', timeout });
+  };
+
+  const readRenderedProfileCounts = async (page) => {
+    const raw = await page.evaluate(() => {
+      const normalize = (text) => (text || '').replace(/\s+/g, ' ').trim();
+      const entries = Array.from(document.querySelectorAll('a[href]')).map((node) => ({
+        href: node.getAttribute('href') || '',
+        text: normalize(node.textContent || ''),
+      }));
+      const pick = (pattern) => entries.find((entry) => pattern.test(entry.href))?.text;
+      return {
+        followersText: pick(/\/followers(?:[/?#]|$)/i),
+        followsText: pick(/\/follows(?:[/?#]|$)/i),
+      };
+    });
+
+    const parseLinkedCount = (text, label) => {
+      if (typeof text !== 'string' || !text.length) {
+        throw new Error(`rendered ${label} link text not found`);
+      }
+      const normalized = text.replace(/\s+/g, ' ').trim();
+      const match = normalized.match(/([0-9][0-9.,]*\s*[KMB]?)/i);
+      if (!match) {
+        throw new Error(`unable to parse rendered ${label} count from "${normalized}"`);
+      }
+      const value = parseCompactCount(match[1].replace(/\s+/g, ''));
+      if (value === undefined) {
+        throw new Error(`unable to normalize rendered ${label} count from "${normalized}"`);
+      }
+      return value;
+    };
+
+    return {
+      followersCount: parseLinkedCount(raw.followersText, 'followers'),
+      followsCount: parseLinkedCount(raw.followsText, 'follows'),
+      raw,
+    };
+  };
+
+  const verifyProfileCountsAfterReload = async (page, viewerAccount, profileHandle, expected, timeoutMs = 30000) => {
+    const started = Date.now();
+    let lastRendered;
+    let lastApi;
+    while (Date.now() - started < timeoutMs) {
+      await gotoProfile(page, profileHandle);
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+      await wait(page, 3000);
+      await waitForProfileHandle(page, profileHandle);
+      lastRendered = await readRenderedProfileCounts(page);
+      const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
+        token: viewerAccount?.accessJwt,
+        params: { actor: profileHandle },
+        timeoutMs: 15000,
+      });
+      if (apiResult.ok) {
+        lastApi = {
+          followersCount: apiResult.json?.followersCount,
+          followsCount: apiResult.json?.followsCount,
+        };
+        const matches = Object.entries(expected).every(([key, value]) =>
+          lastRendered?.[key] === value && lastApi?.[key] === value);
+        if (matches) {
+          return {
+            rendered: lastRendered,
+            api: lastApi,
+          };
+        }
+      }
+      await wait(page, 2000);
+    }
+
+    throw new Error(
+      `profile counts for ${profileHandle} did not converge; expected=${JSON.stringify(expected)} rendered=${JSON.stringify(lastRendered)} api=${JSON.stringify(lastApi)}`,
+    );
+  };
+
+  const readProfileCountsAfterReload = async (page, viewerAccount, profileHandle) => {
+    await gotoProfile(page, profileHandle);
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    await wait(page, 3000);
+    await waitForProfileHandle(page, profileHandle);
+    const rendered = await readRenderedProfileCounts(page);
+    const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
+      token: viewerAccount?.accessJwt,
+      params: { actor: profileHandle },
+      timeoutMs: 15000,
+    });
+    if (!apiResult.ok) {
+      throw new Error(`failed to read profile counts for ${profileHandle}`);
+    }
+    return {
+      rendered,
+      api: {
+        followersCount: apiResult.json?.followersCount,
+        followsCount: apiResult.json?.followsCount,
+      },
+    };
   };
 
   const composePost = async (page, text) => {
@@ -273,6 +385,21 @@ export const createDualActions = ({
     }
   };
 
+  const findFirstFeedItem = async (page, timeout = 20000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const rows = page.locator('[data-testid^="feedItem-by-"]');
+      const count = await rows.count();
+      if (count > 0) {
+        const row = rows.first();
+        await row.waitFor({ state: 'visible', timeout: 10000 });
+        return row;
+      }
+      await wait(page, 500);
+    }
+    throw new Error('feed item not found');
+  };
+
   const clickLike = async (page, row) => {
     const btn = row.getByTestId('likeBtn').first();
     await btn.click({ noWaitAfter: true });
@@ -374,10 +501,19 @@ export const createDualActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const waitForVisibleEditor = async (page) => {
-    const editors = page.locator('[aria-label="Rich-Text Editor"]');
+  const visibleEditorLocator = (page) =>
+    page.locator(
+      [
+        '[aria-label="Rich-Text Editor"]',
+        '[contenteditable="true"][role="textbox"]',
+        '[contenteditable="true"][aria-multiline="true"]',
+      ].join(', '),
+    );
+
+  const waitForVisibleEditor = async (page, timeout = 20000) => {
+    const editors = visibleEditorLocator(page);
     const started = Date.now();
-    while (Date.now() - started < 20000) {
+    while (Date.now() - started < timeout) {
       const count = await editors.count();
       for (let i = count - 1; i >= 0; i -= 1) {
         const editor = editors.nth(i);
@@ -388,6 +524,17 @@ export const createDualActions = ({
       await wait(page, 250);
     }
     throw new Error('visible rich-text editor not found');
+  };
+
+  const firstVisibleLocator = async (locator) => {
+    const count = await locator.count();
+    for (let i = count - 1; i >= 0; i -= 1) {
+      const candidate = locator.nth(i);
+      if (await candidate.isVisible().catch(() => false)) {
+        return candidate;
+      }
+    }
+    return null;
   };
 
   const publishComposer = async (page, text, { applyWritesLabel, publishLabel }) => {
@@ -435,21 +582,56 @@ export const createDualActions = ({
   };
 
   const clickReply = async (page, row, text) => {
-    await dismissBlockingOverlays(page);
-    const btn = row.getByTestId('replyBtn').first();
-    await btn.click({ noWaitAfter: true });
-    await wait(page, 1000);
-
-    const composeReply = page.getByRole('button', { name: /compose reply/i }).last();
-    if (await composeReply.count()) {
-      await composeReply.click({ noWaitAfter: true });
-      await wait(page, 500);
-    } else {
-      const writeYourReply = page.getByText(/^Write your reply$/).last();
-      if (await writeYourReply.count()) {
-        await writeYourReply.click({ noWaitAfter: true });
-        await wait(page, 500);
+    const openReplyComposer = async (scope) => {
+      const editor = await waitForVisibleEditor(page, 750).catch(() => null);
+      if (editor) {
+        return true;
       }
+
+      const composeReply = await firstVisibleLocator(page.getByRole('button', { name: /compose reply/i }));
+      if (composeReply) {
+        await composeReply.click({ noWaitAfter: true });
+        await wait(page, 500);
+        const afterComposeClick = await waitForVisibleEditor(page, 2000).catch(() => null);
+        if (afterComposeClick) {
+          return true;
+        }
+      }
+
+      const writeYourReply = await firstVisibleLocator(page.getByText(/Write your reply/i));
+      if (writeYourReply) {
+        await writeYourReply.click({ noWaitAfter: true, force: true });
+        await wait(page, 500);
+        const afterInlineClick = await waitForVisibleEditor(page, 2000).catch(() => null);
+        if (afterInlineClick) {
+          return true;
+        }
+      }
+
+      const btn = await firstVisibleLocator(scope.getByTestId('replyBtn'));
+      if (!btn) {
+        return false;
+      }
+
+      await btn.scrollIntoViewIfNeeded().catch(() => undefined);
+      await btn.click({ noWaitAfter: true, force: true });
+      await wait(page, 1000);
+      await dismissBlockingOverlays(page);
+      return true;
+    };
+
+    await dismissBlockingOverlays(page);
+
+    await openReplyComposer(row);
+    const firstAttempt = await waitForVisibleEditor(page, 4000).catch(() => null);
+    if (!firstAttempt) {
+      const postText = row.getByTestId('postText').first();
+      if (await postText.count()) {
+        await postText.click({ noWaitAfter: true, force: true }).catch(() => undefined);
+        await wait(page, 1500);
+        await dismissBlockingOverlays(page);
+      }
+      await openReplyComposer(page);
     }
 
     await publishComposer(page, text, {
@@ -688,6 +870,9 @@ export const createDualActions = ({
     completeAgeAssuranceIfNeeded,
     gotoProfile,
     waitForProfileHandle,
+    verifyProfileCountsAfterReload,
+    readProfileCountsAfterReload,
+    findFirstFeedItem,
     composePost,
     composePostWithImage,
     editProfile,

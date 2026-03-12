@@ -27,6 +27,26 @@ const optionalString = (value) => {
   return trimmed === '' ? undefined : trimmed;
 };
 
+const optionalPostUrl = (value, label) => {
+  const maybe = optionalString(value);
+  if (!maybe) {
+    return undefined;
+  }
+  let url;
+  try {
+    url = new URL(maybe);
+  } catch {
+    throw new Error(`${label} must be a valid URL when provided`);
+  }
+  if (!/^https?:$/.test(url.protocol)) {
+    throw new Error(`${label} must use http or https`);
+  }
+  if (!/\/profile\/[^/]+\/post\/[^/?#]+/.test(url.pathname)) {
+    throw new Error(`${label} must point at a post URL`);
+  }
+  return url.toString();
+};
+
 const normalizeCleanupPrefixes = (prefixes) => {
   if (prefixes === undefined) {
     return [];
@@ -107,6 +127,7 @@ export const createSuiteConfig = ({
   publicCheckTimeoutMs = DEFAULTS.publicCheckTimeoutMs,
   stepTimeoutMs = DEFAULTS.stepTimeoutMs,
   targetHandle,
+  remoteReplyPostUrl,
   headless = DEFAULTS.headless,
   strictErrors = DEFAULTS.strictErrors,
   publicChecks = DEFAULTS.publicChecks,
@@ -135,6 +156,11 @@ export const createSuiteConfig = ({
   const maybeTarget = optionalString(targetHandle);
   if (maybeTarget) {
     normalized.targetHandle = maybeTarget;
+  }
+
+  const maybeRemoteReplyPostUrl = optionalPostUrl(remoteReplyPostUrl, 'remoteReplyPostUrl');
+  if (maybeRemoteReplyPostUrl) {
+    normalized.remoteReplyPostUrl = maybeRemoteReplyPostUrl;
   }
 
   const maybeBrowserExecutablePath = optionalString(browserExecutablePath);

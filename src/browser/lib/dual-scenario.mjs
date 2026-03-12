@@ -1,4 +1,5 @@
 export const runDualScenario = async ({
+  config,
   step,
   primaryPage,
   secondaryPage,
@@ -12,6 +13,8 @@ export const runDualScenario = async ({
   waitForOwnPostRecord,
   gotoProfile,
   waitForProfileHandle,
+  verifyProfileCountsAfterReload,
+  readProfileCountsAfterReload,
   findRowByPrimaryText,
   composePostWithImage,
   editProfile,
@@ -73,6 +76,18 @@ export const runDualScenario = async ({
   await step('primary-preclean-stale-artifacts', async () => cleanupStaleSmokeArtifacts(primary));
   await step('secondary-preclean-stale-artifacts', async () => cleanupStaleSmokeArtifacts(secondary));
 
+  await step('primary-preclean-reset-follow-secondary', async () => {
+    await gotoProfile(primaryPage, secondary.handle);
+    await waitForProfileHandle(primaryPage, secondary.handle);
+    return maybeUnfollow(primaryPage);
+  }, { optional: true, pageNames: ['primary'] });
+
+  await step('secondary-preclean-reset-follow-primary', async () => {
+    await gotoProfile(secondaryPage, primary.handle);
+    await waitForProfileHandle(secondaryPage, primary.handle);
+    return maybeUnfollow(secondaryPage);
+  }, { optional: true, pageNames: ['secondary'] });
+
   await step('primary-compose-root-post', () => composePost(primaryPage, primary.postText), {
     pageNames: ['primary'],
   });
@@ -81,6 +96,15 @@ export const runDualScenario = async ({
 
   await step('primary-own-profile', async () => {
     await gotoProfile(primaryPage, primary.handle);
+    await waitForProfileHandle(primaryPage, primary.handle);
+    const row = await findRowByPrimaryText(primaryPage, primary.postText, 60000);
+    const rowTestId = await row.getAttribute('data-testid');
+    return { rowTestId };
+  }, { pageNames: ['primary'] });
+
+  await step('primary-own-profile-reload', async () => {
+    await gotoProfile(primaryPage, primary.handle);
+    await primaryPage.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
     await waitForProfileHandle(primaryPage, primary.handle);
     const row = await findRowByPrimaryText(primaryPage, primary.postText, 60000);
     const rowTestId = await row.getAttribute('data-testid');
@@ -118,19 +142,42 @@ export const runDualScenario = async ({
     return { rowTestId };
   }, { pageNames: ['secondary'] });
 
+  await step('secondary-own-profile-reload', async () => {
+    await gotoProfile(secondaryPage, secondary.handle);
+    await secondaryPage.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitForProfileHandle(secondaryPage, secondary.handle);
+    const row = await findRowByPrimaryText(secondaryPage, secondary.postText, 60000);
+    const rowTestId = await row.getAttribute('data-testid');
+    return { rowTestId };
+  }, { pageNames: ['secondary'] });
+
   await step('primary-edit-profile', () => editProfile(primaryPage, primary), {
     pageNames: ['primary'],
   });
 
   await step('primary-local-profile-after-edit', () => verifyLocalProfileAfterEdit(primary));
-  await step('primary-public-profile-after-edit', () => verifyPublicProfileAfterEdit(primary));
+  await step('primary-public-profile-after-edit', () => verifyPublicProfileAfterEdit(primary), {
+    timeoutMs: Math.max(Number(config.publicCheckTimeoutMs || 180000) + 15000, 195000),
+  });
 
   await step('secondary-edit-profile', () => editProfile(secondaryPage, secondary), {
     pageNames: ['secondary'],
   });
 
   await step('secondary-local-profile-after-edit', () => verifyLocalProfileAfterEdit(secondary));
-  await step('secondary-public-profile-after-edit', () => verifyPublicProfileAfterEdit(secondary));
+  await step('secondary-public-profile-after-edit', () => verifyPublicProfileAfterEdit(secondary), {
+    timeoutMs: Math.max(Number(config.publicCheckTimeoutMs || 180000) + 15000, 195000),
+  });
+
+  await step('primary-baseline-profile-counts', async () => {
+    primary.baselineCounts = await readProfileCountsAfterReload(primaryPage, primary, primary.handle);
+    return primary.baselineCounts;
+  }, { pageNames: ['primary'] });
+
+  await step('secondary-baseline-profile-counts', async () => {
+    secondary.baselineCounts = await readProfileCountsAfterReload(secondaryPage, secondary, secondary.handle);
+    return secondary.baselineCounts;
+  }, { pageNames: ['secondary'] });
 
   await step('primary-create-list', async () => {
     return createList(primaryPage, primary.listName, primary.listDescription);
@@ -229,12 +276,26 @@ export const runDualScenario = async ({
     return { uri: record.uri };
   });
 
+  await step('primary-own-profile-counts-after-follow', async () => {
+    return verifyProfileCountsAfterReload(primaryPage, primary, primary.handle, {
+      followsCount: (primary.baselineCounts?.api?.followsCount ?? 0) + 1,
+    });
+  }, { pageNames: ['primary'] });
+
+  await step('secondary-own-profile-counts-after-being-followed', async () => {
+    return verifyProfileCountsAfterReload(secondaryPage, secondary, secondary.handle, {
+      followersCount: (secondary.baselineCounts?.api?.followersCount ?? 0) + 1,
+    });
+  }, { pageNames: ['secondary'] });
+
   await step('primary-like-secondary-post', async () => {
+    await gotoProfile(primaryPage, secondary.handle);
     const row = await findRowByPrimaryText(primaryPage, secondary.postText, 60000);
     return ensureLiked(primaryPage, row);
   }, { pageNames: ['primary'] });
 
   await step('primary-bookmark-secondary-post', async () => {
+    await gotoProfile(primaryPage, secondary.handle);
     const row = await findRowByPrimaryText(primaryPage, secondary.postText, 60000);
     return ensureBookmarked(primaryPage, row);
   }, { pageNames: ['primary'] });
@@ -269,6 +330,48 @@ export const runDualScenario = async ({
     primary.replyPost = await waitForOwnPostRecord(primary, primary.replyText);
     return { replyText: primary.replyText, uri: primary.replyPost.uri };
   }, { pageNames: ['primary'] });
+
+  if (config.remoteReplyPostUrl) {
+    const remoteReplyText = `${primary.replyText} remote`;
+    const remoteReplyHandleMatch = config.remoteReplyPostUrl.match(/\/profile\/([^/]+)\/post\//);
+    const remoteReplyHandle = remoteReplyHandleMatch ? decodeURIComponent(remoteReplyHandleMatch[1]) : undefined;
+
+    if (remoteReplyHandle) {
+      await step('primary-prepare-configured-remote-reply-target', async () => {
+        await gotoProfile(primaryPage, remoteReplyHandle);
+        await waitForProfileHandle(primaryPage, remoteReplyHandle);
+        const wasFollowing = (await primaryPage.getByTestId('unfollowBtn').first().count()) > 0;
+        primary.remoteReplyWasFollowingTarget = wasFollowing;
+        if (!wasFollowing) {
+          await maybeFollow(primaryPage);
+        }
+        return {
+          remoteReplyHandle,
+          wasFollowing,
+          nowFollowing: (await primaryPage.getByTestId('unfollowBtn').first().count()) > 0,
+        };
+      }, { pageNames: ['primary'] });
+    }
+
+    await step('primary-reply-configured-remote-post', async () => {
+      await primaryPage.goto(config.remoteReplyPostUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000,
+      });
+      await primaryPage.getByTestId('replyBtn').first().waitFor({
+        state: 'visible',
+        timeout: 20000,
+      });
+      await clickReply(primaryPage, primaryPage, remoteReplyText);
+      primary.remoteReplyPost = await waitForOwnPostRecord(primary, remoteReplyText);
+      return {
+        replyText: remoteReplyText,
+        uri: primary.remoteReplyPost.uri,
+        remoteReplyPostUrl: config.remoteReplyPostUrl,
+        remoteReplyHandle,
+      };
+    }, { pageNames: ['primary'] });
+  }
 
   await step('secondary-notification-api-primary-engagement-wave', async () => {
     const result = await pollNotifications({
@@ -308,6 +411,20 @@ export const runDualScenario = async ({
     const record = await waitForFollowRecord(secondary, primary.did);
     return { uri: record.uri };
   });
+
+  await step('secondary-own-profile-counts-after-follow', async () => {
+    return verifyProfileCountsAfterReload(secondaryPage, secondary, secondary.handle, {
+      followersCount: (secondary.baselineCounts?.api?.followersCount ?? 0) + 1,
+      followsCount: (secondary.baselineCounts?.api?.followsCount ?? 0) + 1,
+    });
+  }, { pageNames: ['secondary'] });
+
+  await step('primary-own-profile-counts-after-being-followed', async () => {
+    return verifyProfileCountsAfterReload(primaryPage, primary, primary.handle, {
+      followersCount: (primary.baselineCounts?.api?.followersCount ?? 0) + 1,
+      followsCount: (primary.baselineCounts?.api?.followsCount ?? 0) + 1,
+    });
+  }, { pageNames: ['primary'] });
 
   await step('primary-notification-api-secondary-follow', async () => {
     const result = await pollNotifications({
@@ -438,6 +555,32 @@ export const runDualScenario = async ({
     return maybeUnfollow(secondaryPage);
   }, { optional: true, pageNames: ['secondary'] });
 
+  if (config.remoteReplyPostUrl && primary.remoteReplyWasFollowingTarget === false) {
+    const remoteReplyHandleMatch = config.remoteReplyPostUrl.match(/\/profile\/([^/]+)\/post\//);
+    const remoteReplyHandle = remoteReplyHandleMatch ? decodeURIComponent(remoteReplyHandleMatch[1]) : undefined;
+    if (remoteReplyHandle) {
+      await step('primary-cleanup-remote-reply-target-follow', async () => {
+        await gotoProfile(primaryPage, remoteReplyHandle);
+        await waitForProfileHandle(primaryPage, remoteReplyHandle);
+        return maybeUnfollow(primaryPage);
+      }, { optional: true, pageNames: ['primary'] });
+    }
+  }
+
+  await step('primary-own-profile-counts-after-unfollow-cleanup', async () => {
+    return verifyProfileCountsAfterReload(primaryPage, primary, primary.handle, {
+      followersCount: primary.baselineCounts?.api?.followersCount ?? 0,
+      followsCount: primary.baselineCounts?.api?.followsCount ?? 0,
+    });
+  }, { pageNames: ['primary'] });
+
+  await step('secondary-own-profile-counts-after-unfollow-cleanup', async () => {
+    return verifyProfileCountsAfterReload(secondaryPage, secondary, secondary.handle, {
+      followersCount: secondary.baselineCounts?.api?.followersCount ?? 0,
+      followsCount: secondary.baselineCounts?.api?.followsCount ?? 0,
+    });
+  }, { pageNames: ['secondary'] });
+
   await step('primary-cleanup-delete-quote', async () => {
     await gotoProfile(primaryPage, primary.handle);
     await openProfileTab(primaryPage, 'Posts');
@@ -455,6 +598,14 @@ export const runDualScenario = async ({
     await openProfileTab(primaryPage, 'Replies');
     return maybeDeleteOwnPostByText(primaryPage, primary.replyText, 'deleted reply post');
   }, { optional: true, pageNames: ['primary'] });
+
+  if (config.remoteReplyPostUrl) {
+    await step('primary-cleanup-delete-remote-reply', async () => {
+      await gotoProfile(primaryPage, primary.handle);
+      await openProfileTab(primaryPage, 'Replies');
+      return maybeDeleteOwnPostByText(primaryPage, `${primary.replyText} remote`, 'deleted remote reply post');
+    }, { optional: true, pageNames: ['primary'] });
+  }
 
   await step('secondary-cleanup-delete-root-post', async () => {
     await gotoProfile(secondaryPage, secondary.handle);

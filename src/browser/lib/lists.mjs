@@ -1,4 +1,18 @@
 export const createListHelpers = ({ appBaseUrl, wait }) => {
+  const waitForListPageReady = async (page, timeout = 30000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const moreOptions = page.getByTestId('moreOptionsBtn').first();
+      if (await moreOptions.isVisible().catch(() => false)) {
+        return;
+      }
+      await wait(page, 1500);
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => undefined);
+      await wait(page, 2000);
+    }
+    throw new Error('list page did not become interactive');
+  };
+
   const openLists = async (page) => {
     await page.goto(`${appBaseUrl}/lists`, {
       waitUntil: 'domcontentloaded',
@@ -20,6 +34,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
       },
     );
     await wait(page, 3000);
+    await waitForListPageReady(page);
   };
 
   const waitForListTitle = async (page, title, timeout = 20000) => {
@@ -140,7 +155,6 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
 
   const removeUserFromCurrentList = async (page, handle) => {
     await openListPeopleTab(page);
-    await page.getByText(`@${handle.replace(/^@/, '')}`).first().waitFor({ state: 'visible', timeout: 15000 });
     const edit = page.getByTestId(`user-${handle}-editBtn`).first();
     await edit.waitFor({ state: 'visible', timeout: 15000 });
     await edit.click({ noWaitAfter: true });
@@ -161,6 +175,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
 
   return {
     openLists,
+    waitForListPageReady,
     openListPage,
     waitForListTitle,
     fillListEditor,

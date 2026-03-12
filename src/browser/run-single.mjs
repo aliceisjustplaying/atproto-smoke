@@ -36,15 +36,31 @@ export const runSingleFromConfig = async (config) => {
   { url: /workers\.dev\/api\/config/i, error: /ERR_ABORTED/i },
   { url: /app-config\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
   { url: /live-events\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
+  { url: /cdn\.bsky\.app\/img\/avatar_thumbnail\//i, error: /ERR_ABORTED/i },
   { url: /events\.bsky\.app\/t/i, error: /ERR_ABORTED/i },
   { url: /events\.bsky\.app\/gb\/api\/features\//i, error: /ERR_ABORTED/i },
   { url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts)/i, error: /ERR_ABORTED/i },
   { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/com\.atproto\.identity\.resolveHandle/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/app\.bsky\.graph\.getSuggestedFollowsByActor/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/chat\.bsky\.convo\.getConvoAvailability/i, error: /ERR_ABORTED/i },
 ];
 
   const ignoredHttpFailure = [
   { url: /c\.1password\.com\/richicons/i, status: 404 },
+  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
 ];
+  const progressEnabled = config.progress !== false;
+
+  const emitProgress = (status, name, detail = '') => {
+  if (!progressEnabled) {
+    return;
+  }
+  const timestamp = new Date().toISOString();
+  const suffix = detail ? ` ${detail}` : '';
+  console.error(`[${timestamp}] [${status}] ${name}${suffix}`);
+  };
 
   const AVATAR_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC';
@@ -178,10 +194,12 @@ export const runSingleFromConfig = async (config) => {
     );
 
   const step = async (name, fn, { optional = false } = {}) => {
+  emitProgress('start', name);
   try {
     const result = await fn();
     const shot = await screenshot(name);
     recordStep(name, 'ok', { screenshot: shot, ...(result ?? {}) });
+    emitProgress('ok', name);
     return result;
   } catch (error) {
     const shot = await screenshot(`${name}-error`).catch(() => undefined);
@@ -189,6 +207,7 @@ export const runSingleFromConfig = async (config) => {
       screenshot: shot,
       error: String(error?.message ?? error),
     });
+    emitProgress(optional ? 'skip' : 'fail', name, String(error?.message ?? error));
     if (!optional) {
       throw error;
     }

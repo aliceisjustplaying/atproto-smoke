@@ -12,6 +12,8 @@ const usage = `Usage:
 Notes:
   - bring-your-own is the default adapter
   - v1 is browser-first against bsky.app
+  - run commands print step progress to stderr by default
+  - add --json-only to suppress progress and keep stdout machine-only
   - direct API/AppView contract layers are documented as a later v2 expansion
 `;
 
@@ -41,6 +43,10 @@ const parseArgs = (argv) => {
     }
     if (arg === '--help' || arg === '-h' || arg === 'help') {
       result.help = true;
+      continue;
+    }
+    if (arg === '--json-only') {
+      result.jsonOnly = true;
       continue;
     }
     throw new Error(`unknown argument: ${arg}`);
@@ -142,6 +148,9 @@ export const runCliFromArgv = async (argv = process.argv) => {
 
   const raw = await loadJsonConfig(args.configPath);
   const config = normalizeConfig({ mode, adapter: adapter.name, raw });
+  if (args.command === 'run-single' || args.command === 'run-dual') {
+    config.progress = !args.jsonOnly;
+  }
 
   if (args.command === 'validate') {
     console.log(JSON.stringify(config, null, 2));

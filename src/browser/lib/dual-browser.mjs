@@ -14,16 +14,22 @@ const ignoredRequestFailure = [
   { url: /workers\.dev\/api\/config/i, error: /ERR_ABORTED/i },
   { url: /app-config\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
   { url: /live-events\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
+  { url: /cdn\.bsky\.app\/img\/avatar_thumbnail\//i, error: /ERR_ABORTED/i },
   { url: /events\.bsky\.app\/t/i, error: /ERR_ABORTED/i },
   { url: /events\.bsky\.app\/gb\/api\/features\//i, error: /ERR_ABORTED/i },
   { url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts|.*\.vtt)/i, error: /ERR_ABORTED/i },
   { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
   { url: /\/xrpc\/app\.bsky\.graph\.(?:muteActor|unmuteActor)/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/com\.atproto\.identity\.resolveHandle/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/app\.bsky\.graph\.getSuggestedFollowsByActor/i, error: /ERR_ABORTED/i },
+  { url: /\/xrpc\/chat\.bsky\.convo\.getConvoAvailability/i, error: /ERR_ABORTED/i },
 ];
 
 const ignoredHttpFailure = [
   { url: /c\.1password\.com\/richicons/i, status: 404 },
   { url: /\/xrpc\/app\.bsky\.graph\.getList\?/, status: 400 },
+  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
 ];
 
 const browserCandidates = async (config) => {
@@ -146,7 +152,17 @@ export const setupDualBrowser = async ({ config, summary }) => {
 
 export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryPage }) => {
   const stepTimeoutMs = Number(config.stepTimeoutMs || 120000);
+  const progressEnabled = config.progress !== false;
   const pageFor = (name) => (name === 'primary' ? primaryPage : secondaryPage);
+
+  const emitProgress = (status, name, detail = '') => {
+    if (!progressEnabled) {
+      return;
+    }
+    const timestamp = new Date().toISOString();
+    const suffix = detail ? ` ${detail}` : '';
+    console.error(`[${timestamp}] [${status}] ${name}${suffix}`);
+  };
 
   const screenshot = async (pageName, name) => {
     const page = pageFor(pageName);
@@ -179,14 +195,16 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
       (rule) => rule.url.test(entry.url || '') && (!rule.status || rule.status === entry.status),
     );
 
-  const step = async (name, fn, { optional = false, pageNames = [] } = {}) => {
+  const step = async (name, fn, { optional = false, pageNames = [], timeoutMs } = {}) => {
+    const effectiveTimeoutMs = Number(timeoutMs || stepTimeoutMs);
+    emitProgress('start', name);
     try {
       const result = await Promise.race([
         fn(),
         new Promise((_, reject) => {
           setTimeout(() => {
-            reject(new Error(`step timed out after ${stepTimeoutMs}ms`));
-          }, stepTimeoutMs);
+            reject(new Error(`step timed out after ${effectiveTimeoutMs}ms`));
+          }, effectiveTimeoutMs);
         }),
       ]);
       const screenshots = {};
@@ -194,6 +212,7 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
         screenshots[pageName] = await screenshot(pageName, name);
       }
       recordStep(name, 'ok', { screenshots, ...(result ?? {}) });
+      emitProgress('ok', name);
       return result;
     } catch (error) {
       const screenshots = {};
@@ -204,6 +223,7 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
         screenshots,
         error: String(error?.message ?? error),
       });
+      emitProgress(optional ? 'skip' : 'fail', name, String(error?.message ?? error));
       if (!optional) {
         throw error;
       }

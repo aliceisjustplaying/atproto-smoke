@@ -18,6 +18,7 @@ export const runDualFromConfig = async (config) => {
     pdsUrl: config.pdsUrl,
     publicApiUrl: config.publicApiUrl,
     targetHandle: config.targetHandle,
+    remoteReplyPostUrl: config.remoteReplyPostUrl,
     primaryHandle: config.primary?.handle,
     secondaryHandle: config.secondary?.handle,
     steps: [],
@@ -86,6 +87,8 @@ export const runDualFromConfig = async (config) => {
     completeAgeAssuranceIfNeeded,
     gotoProfile,
     waitForProfileHandle,
+    verifyProfileCountsAfterReload,
+    readProfileCountsAfterReload,
     composePost,
     composePostWithImage,
     editProfile,
@@ -128,6 +131,7 @@ export const runDualFromConfig = async (config) => {
 
   try {
     await runDualScenario({
+    config,
     step,
     primaryPage,
     secondaryPage,
@@ -141,6 +145,8 @@ export const runDualFromConfig = async (config) => {
     waitForOwnPostRecord,
     gotoProfile,
     waitForProfileHandle,
+    verifyProfileCountsAfterReload,
+    readProfileCountsAfterReload,
     findRowByPrimaryText,
     composePostWithImage,
     editProfile,

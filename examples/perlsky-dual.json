@@ -2,6 +2,7 @@
   "pdsUrl": "https://perlsky.mosphere.at",
   "artifactsDir": "data/browser-smoke/perlsky-dual",
   "targetHandle": "alice.mosphere.at",
+  "remoteReplyPostUrl": "https://bsky.app/profile/alice.mosphere.at/post/3mgu5lgnsnk22",
   "strictErrors": true,
   "primary": {
     "handle": "smoke-primary.perlsky.mosphere.at",
