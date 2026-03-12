@@ -4,7 +4,7 @@ Browser-driven smoke tests for any AT Protocol PDS. Point it at your server, giv
 
 It grew out of [perlsky](https://github.com/aliceisjustplaying/perlsky) but is designed to work with any PDS implementation.
 
-![atproto-smoke demo](assets/demo.gif)
+![atproto-smoke demo](assets/atproto-smoke-demo.gif)
 
 <details>
 <summary>What it looks like in bsky.app</summary>
@@ -77,4 +77,4 @@ Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./d
 
 ## Future direction
 
-The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real social-app assumptions that API tests miss.
+The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real [social-app](https://github.com/bluesky-social/social-app) assumptions that API tests miss.
