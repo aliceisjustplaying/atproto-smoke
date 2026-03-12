@@ -24,11 +24,12 @@ That's it. Provide a `pdsUrl` and two account credentials, and the suite handles
 ## What it covers
 
 - Post creation (text and image), like, repost, quote, reply, bookmark, follow/unfollow
+- Cross-PDS reply — set `remoteReplyPostUrl` to exercise replying to a post on a different server
 - Profile edit and avatar upload
+- Signed-in profile reload with rendered follow/follower count verification
 - List lifecycle (create, edit, add/remove members, delete)
 - Notification checks
 - Settings-depth flows
-- Signed-in profile reload with follow/follower count assertions
 - Mute/unmute, block/unblock, report draft
 
 Every run produces screenshots, console output, failed requests, HTTP failures, and recent XRPC traffic as artifacts. Steps have bounded timeouts so a hung browser fails with artifacts instead of hanging forever.
