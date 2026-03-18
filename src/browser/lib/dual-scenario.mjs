@@ -66,10 +66,10 @@ export const runDualScenario = async ({
     pageNames: ['secondary'],
   });
 
-  primary.session = await createSession(primary.handle, primary.password);
+  primary.session = await createSession(primary);
   primary.accessJwt = primary.session.accessJwt;
   primary.did = primary.session.did;
-  secondary.session = await createSession(secondary.handle, secondary.password);
+  secondary.session = await createSession(secondary);
   secondary.accessJwt = secondary.session.accessJwt;
   secondary.did = secondary.session.did;
 

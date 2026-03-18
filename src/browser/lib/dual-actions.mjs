@@ -36,6 +36,7 @@ export const createDualActions = ({
   };
 
   const login = async (page, account) => {
+    const loginIdentifier = account.loginIdentifier || account.handle;
     await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.getByRole('button', { name: 'Sign in' }).nth(0).click({ noWaitAfter: true });
     await wait(page, 1000);
@@ -51,7 +52,7 @@ export const createDualActions = ({
       await close.evaluate((el) => el.click());
       await wait(page, 300);
     }
-    await page.getByPlaceholder('Username or email address').fill(account.handle);
+    await page.getByPlaceholder('Username or email address').fill(loginIdentifier);
     await page.getByPlaceholder('Password').fill(account.password);
     await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
     await wait(page, 3000);

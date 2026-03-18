@@ -75,6 +75,7 @@ const derivePdsHost = (pdsUrl) => {
 
 export const createAccountConfig = ({
   handle,
+  loginIdentifier,
   password,
   birthdate = DEFAULTS.birthdate,
   postText,
@@ -92,6 +93,11 @@ export const createAccountConfig = ({
     cleanupPostPrefixes: normalizeCleanupPrefixes(cleanupPostPrefixes),
     ...rest,
   };
+
+  const login = optionalString(loginIdentifier);
+  if (login) {
+    normalized.loginIdentifier = login;
+  }
 
   const post = optionalString(postText);
   const mediaPost = optionalString(mediaPostText);

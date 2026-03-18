@@ -185,16 +185,17 @@ export const createDualApiHelpers = ({ config }) => {
       timeoutMs,
     );
 
-  const createSession = async (handle, password) => {
+  const createSession = async (account) => {
+    const identifier = account.loginIdentifier || account.handle;
     const result = await xrpcJson('com.atproto.server.createSession', {
       method: 'POST',
       body: {
-        identifier: handle,
-        password,
+        identifier,
+        password: account.password,
       },
     });
     if (!result.ok) {
-      throw new Error(`createSession failed for ${handle}: ${result.status} ${result.text}`);
+      throw new Error(`createSession failed for ${identifier}: ${result.status} ${result.text}`);
     }
     return result.json;
   };
@@ -242,6 +243,7 @@ export const createDualApiHelpers = ({ config }) => {
 
   const accountFromConfig = (entry) => ({
     ...entry,
+    loginIdentifier: entry.loginIdentifier || entry.handle,
     mediaPostText: entry.mediaPostText || `${entry.postText} image`,
     shortHandle: entry.handle.replace(/^@/, ''),
   });

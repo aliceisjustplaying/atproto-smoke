@@ -72,7 +72,7 @@ Otherwise set `PERLSKY_BROWSER_SUITE_ROOT=/path/to/atproto-smoke`.
 
 ## Config
 
-The config surface is intentionally small — suite-level settings (`pdsUrl`, `artifactsDir`, `headless`, `strictErrors`, `targetHandle`, `remoteReplyPostUrl`, etc.) and per-account settings (`handle`, `password`, `postText`, `cleanupPostPrefixes`, etc.). `pdsHost` is derived from `pdsUrl` automatically.
+The config surface is intentionally small — suite-level settings (`pdsUrl`, `artifactsDir`, `headless`, `strictErrors`, `targetHandle`, `remoteReplyPostUrl`, etc.) and per-account settings (`handle`, `password`, optional `loginIdentifier`, `postText`, `cleanupPostPrefixes`, etc.). `pdsHost` is derived from `pdsUrl` automatically.
 
 Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md) for representative CLI output and `summary.json` shape.
 

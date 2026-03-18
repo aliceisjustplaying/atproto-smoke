@@ -21,6 +21,7 @@ export const createSingleActions = ({
   };
 
   const login = async () => {
+    const loginIdentifier = config.loginIdentifier || config.handle;
     await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.getByRole('button', { name: 'Sign in' }).nth(0).click({ noWaitAfter: true });
     await wait(1000);
@@ -36,7 +37,7 @@ export const createSingleActions = ({
       await close.evaluate((el) => el.click());
       await wait(300);
     }
-    await page.getByPlaceholder('Username or email address').fill(config.handle);
+    await page.getByPlaceholder('Username or email address').fill(loginIdentifier);
     await page.getByPlaceholder('Password').fill(config.password);
     await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
     await wait(3000);

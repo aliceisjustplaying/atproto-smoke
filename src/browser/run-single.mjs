@@ -15,6 +15,7 @@ export const runSingleFromConfig = async (config) => {
     pdsUrl: config.pdsUrl,
     publicApiUrl: config.publicApiUrl,
     handle: config.handle,
+    loginIdentifier: config.loginIdentifier,
     targetHandle: config.targetHandle,
     steps: [],
     console: [],
