@@ -107,6 +107,20 @@ export const PDSLAB_TARGETS = Object.freeze([
     ],
   }),
   createTarget({
+    id: 'pdsjs-pair',
+    mode: 'dual',
+    adapter: 'bring-your-own',
+    primaryLedgerTarget: 'pdsjs',
+    secondaryLedgerTarget: 'pdsjs2',
+    primaryLedgerAccount: 'smoke-a',
+    secondaryLedgerAccount: 'smoke-b',
+    runnerStatus: 'ready',
+    accountSource: 'pdslab-cross-pds-single-user-pair',
+    notes: [
+      'Cross-PDS dual run using the pdsjs single-user pair.',
+    ],
+  }),
+  createTarget({
     id: 'micropod',
     mode: 'single',
     adapter: 'bring-your-own',
@@ -130,6 +144,20 @@ export const PDSLAB_TARGETS = Object.freeze([
     accountSource: 'pdslab-paired-single-b',
     notes: [
       'Companion endpoint for the Micropod single-user pair.',
+    ],
+  }),
+  createTarget({
+    id: 'micropod-pair',
+    mode: 'dual',
+    adapter: 'bring-your-own',
+    primaryLedgerTarget: 'micropod',
+    secondaryLedgerTarget: 'micropod2',
+    primaryLedgerAccount: 'smoke-a',
+    secondaryLedgerAccount: 'smoke-b',
+    runnerStatus: 'ready',
+    accountSource: 'pdslab-cross-pds-single-user-pair',
+    notes: [
+      'Cross-PDS dual run using the Micropod single-user pair.',
     ],
   }),
   createTarget({
@@ -158,6 +186,20 @@ export const PDSLAB_TARGETS = Object.freeze([
     notes: [
       'Companion endpoint for the Rustproto single-user pair.',
       'Initial repo/profile state has already been installed.',
+    ],
+  }),
+  createTarget({
+    id: 'rustproto-pair',
+    mode: 'dual',
+    adapter: 'bring-your-own',
+    primaryLedgerTarget: 'rustproto',
+    secondaryLedgerTarget: 'rustproto2',
+    primaryLedgerAccount: 'smoke-a',
+    secondaryLedgerAccount: 'smoke-b',
+    runnerStatus: 'ready',
+    accountSource: 'pdslab-cross-pds-single-user-pair',
+    notes: [
+      'Cross-PDS dual run using the Rustproto single-user pair.',
     ],
   }),
   createTarget({
@@ -191,6 +233,23 @@ export const PDSLAB_TARGETS = Object.freeze([
     ],
   }),
   createTarget({
+    id: 'dnproto-pair',
+    mode: 'dual',
+    adapter: 'bring-your-own',
+    primaryLedgerTarget: 'dnproto',
+    secondaryLedgerTarget: 'dnproto2',
+    primaryLedgerAccount: 'smoke-a',
+    secondaryLedgerAccount: 'smoke-b',
+    primaryLoginIdentifierKey: 'did',
+    secondaryLoginIdentifierKey: 'did',
+    runnerStatus: 'ready',
+    accountSource: 'pdslab-cross-pds-single-user-pair',
+    notes: [
+      'Cross-PDS dual run using the Dnproto single-user pair.',
+      'Both sides should log in by DID instead of handle.',
+    ],
+  }),
+  createTarget({
     id: 'cirrus-a',
     mode: 'single',
     adapter: 'bring-your-own',
@@ -220,10 +279,14 @@ export const PDSLAB_TARGETS = Object.freeze([
     id: 'cirrus-pair',
     mode: 'dual',
     adapter: 'bring-your-own',
-    runnerStatus: 'requires-two-pds-dual-flow',
+    primaryLedgerTarget: 'cirrus-a',
+    secondaryLedgerTarget: 'cirrus-b',
+    primaryCurrentDeploymentKey: 'currentDeployment',
+    secondaryCurrentDeploymentKey: 'currentDeployment',
+    runnerStatus: 'ready',
+    accountSource: 'pdslab-cross-pds-single-user-pair',
     notes: [
-      'Virtual target for cross-PDS Cirrus testing.',
-      'Current run-dual assumes one PDS URL, so this pair needs harness work before it can run.',
+      'Cross-PDS dual run using the two single-user Cirrus deployments.',
     ],
   }),
   createTarget({

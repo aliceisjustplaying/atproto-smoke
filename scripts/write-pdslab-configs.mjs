@@ -49,12 +49,25 @@ const ensureTarget = (ledger, targetId) => {
   return target;
 };
 
-const createAccount = ({ account, loginIdentifierKey }) => {
+const createAccountDefaults = ({ spec, role }) => {
+  const prefix = `pdslab ${spec.id} ${role}`;
+  return {
+    postText: `${prefix} root post`,
+    mediaPostText: `${prefix} image post`,
+    quoteText: `${prefix} quote post`,
+    replyText: `${prefix} reply post`,
+    profileNote: `${prefix} profile note`,
+    cleanupPostPrefixes: [`${prefix} `],
+  };
+};
+
+const createAccount = ({ account, loginIdentifierKey, spec, role }) => {
   if (!account) {
     throw new Error('account details are required');
   }
 
   const normalized = {
+    ...createAccountDefaults({ spec, role }),
     handle: account.handle,
     password: account.password,
   };
@@ -73,6 +86,12 @@ const createAccount = ({ account, loginIdentifierKey }) => {
   if (account.email) {
     normalized.email = account.email;
   }
+  if (account.pdsUrl) {
+    normalized.pdsUrl = account.pdsUrl;
+  }
+  if (account.pdsHost) {
+    normalized.pdsHost = account.pdsHost;
+  }
 
   return normalized;
 };
@@ -90,6 +109,7 @@ const createSingleConfig = ({ spec, ledgerTarget }) => {
     adapter: spec.adapter,
     pdsUrl: ledgerTarget.pdsUrl,
     artifactsDir: `data/browser-smoke/pdslab/${spec.id}`,
+    targetHandle: 'smoke-a.perlsky.pdslab.net',
     accountSource: spec.accountSource,
     pdslabTargetId: spec.id,
     pdslabRunnerStatus: spec.runnerStatus,
@@ -98,6 +118,8 @@ const createSingleConfig = ({ spec, ledgerTarget }) => {
     account: createAccount({
       account: accountSource,
       loginIdentifierKey: spec.loginIdentifierKey,
+      spec,
+      role: spec.ledgerAccount || 'single',
     }),
   };
 };
@@ -117,8 +139,49 @@ const createDualConfig = ({ spec, ledgerTarget }) => {
     pdslabTargetId: spec.id,
     pdslabRunnerStatus: spec.runnerStatus,
     pdslabNotes: spec.notes,
-    primary: createAccount({ account: primary }),
-    secondary: createAccount({ account: secondary }),
+    primary: createAccount({ account: primary, spec, role: 'primary' }),
+    secondary: createAccount({ account: secondary, spec, role: 'secondary' }),
+  };
+};
+
+const createCrossPdsDualConfig = ({ spec, primaryLedgerTarget, secondaryLedgerTarget }) => {
+  const primarySource = spec.primaryCurrentDeploymentKey
+    ? primaryLedgerTarget[spec.primaryCurrentDeploymentKey]
+    : primaryLedgerTarget.accounts?.[spec.primaryLedgerAccount];
+  const secondarySource = spec.secondaryCurrentDeploymentKey
+    ? secondaryLedgerTarget[spec.secondaryCurrentDeploymentKey]
+    : secondaryLedgerTarget.accounts?.[spec.secondaryLedgerAccount];
+
+  if (!primarySource || !secondarySource) {
+    throw new Error(`cross-PDS target ${spec.id} is missing one of its accounts in the ledger`);
+  }
+
+  return {
+    adapter: spec.adapter,
+    pdsUrl: primaryLedgerTarget.pdsUrl,
+    artifactsDir: `data/browser-smoke/pdslab/${spec.id}`,
+    accountSource: spec.accountSource,
+    pdslabTargetId: spec.id,
+    pdslabRunnerStatus: spec.runnerStatus,
+    pdslabNotes: spec.notes,
+    primary: createAccount({
+      account: {
+        ...primarySource,
+        pdsUrl: primaryLedgerTarget.pdsUrl,
+      },
+      loginIdentifierKey: spec.primaryLoginIdentifierKey,
+      spec,
+      role: 'primary',
+    }),
+    secondary: createAccount({
+      account: {
+        ...secondarySource,
+        pdsUrl: secondaryLedgerTarget.pdsUrl,
+      },
+      loginIdentifierKey: spec.secondaryLoginIdentifierKey,
+      spec,
+      role: 'secondary',
+    }),
   };
 };
 
@@ -129,6 +192,12 @@ const createPlan = (ledger) => {
   for (const spec of PDSLAB_TARGETS) {
     const needsLedgerTarget = !!spec.ledgerTarget;
     const ledgerTarget = needsLedgerTarget ? ensureTarget(ledger, spec.ledgerTarget) : null;
+    const primaryLedgerTarget = spec.primaryLedgerTarget
+      ? ensureTarget(ledger, spec.primaryLedgerTarget)
+      : null;
+    const secondaryLedgerTarget = spec.secondaryLedgerTarget
+      ? ensureTarget(ledger, spec.secondaryLedgerTarget)
+      : null;
 
     if (spec.runnerStatus !== 'ready' && spec.runnerStatus !== 'needs-login-identifier-support') {
       skipped.push({
@@ -140,9 +209,14 @@ const createPlan = (ledger) => {
       continue;
     }
 
-    const config = spec.mode === 'dual'
-      ? createDualConfig({ spec, ledgerTarget })
-      : createSingleConfig({ spec, ledgerTarget });
+    let config;
+    if (spec.mode === 'dual' && spec.primaryLedgerTarget && spec.secondaryLedgerTarget) {
+      config = createCrossPdsDualConfig({ spec, primaryLedgerTarget, secondaryLedgerTarget });
+    } else if (spec.mode === 'dual') {
+      config = createDualConfig({ spec, ledgerTarget });
+    } else {
+      config = createSingleConfig({ spec, ledgerTarget });
+    }
 
     targets.push({
       id: spec.id,
@@ -171,6 +245,8 @@ const writePlan = async ({ plan, outputDir }) => {
       mode,
       runnerStatus,
       pdsUrl: config.pdsUrl,
+      primaryPdsUrl: config.primary?.pdsUrl,
+      secondaryPdsUrl: config.secondary?.pdsUrl,
       artifactsDir: config.artifactsDir,
       accountSource: config.accountSource,
       pairGroup: config.pdslabPairGroup,

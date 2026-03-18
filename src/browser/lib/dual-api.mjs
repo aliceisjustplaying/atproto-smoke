@@ -1,5 +1,12 @@
 export const createDualApiHelpers = ({ config }) => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const deriveHost = (pdsUrl) => {
+    try {
+      return new URL(pdsUrl).host;
+    } catch {
+      return undefined;
+    }
+  };
 
   const fetchJson = async (url, options = {}) => {
     const timeoutMs = options.timeoutMs ?? 30000;
@@ -33,8 +40,9 @@ export const createDualApiHelpers = ({ config }) => {
     return { ok: res.ok, status: res.status, url: res.url };
   };
 
-  const xrpcJson = async (nsid, { method = 'GET', token, params, body, timeoutMs } = {}) => {
-    const url = new URL(`${config.pdsUrl}/xrpc/${nsid}`);
+  const xrpcJson = async (nsid, { method = 'GET', token, params, body, timeoutMs, pdsUrl } = {}) => {
+    const basePdsUrl = pdsUrl || config.pdsUrl;
+    const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
     if (params) {
       for (const [key, value] of Object.entries(params)) {
         url.searchParams.set(key, value);
@@ -73,6 +81,7 @@ export const createDualApiHelpers = ({ config }) => {
   const listOwnRecords = async (account, collection, limit = 100) => {
     const result = await xrpcJson('com.atproto.repo.listRecords', {
       token: account.accessJwt,
+      pdsUrl: account.pdsUrl,
       params: {
         repo: account.did,
         collection,
@@ -103,6 +112,7 @@ export const createDualApiHelpers = ({ config }) => {
     const result = await xrpcJson('com.atproto.repo.deleteRecord', {
       method: 'POST',
       token: account.accessJwt,
+      pdsUrl: account.pdsUrl,
       body: {
         repo: account.did,
         collection,
@@ -189,6 +199,7 @@ export const createDualApiHelpers = ({ config }) => {
     const identifier = account.loginIdentifier || account.handle;
     const result = await xrpcJson('com.atproto.server.createSession', {
       method: 'POST',
+      pdsUrl: account.pdsUrl,
       body: {
         identifier,
         password: account.password,
@@ -212,6 +223,7 @@ export const createDualApiHelpers = ({ config }) => {
     while (Date.now() - started < timeoutMs) {
       last = await xrpcJson('app.bsky.notification.listNotifications', {
         token: account.accessJwt,
+        pdsUrl: account.pdsUrl,
         params: { limit: '100' },
         timeoutMs: 15000,
       });
@@ -243,6 +255,8 @@ export const createDualApiHelpers = ({ config }) => {
 
   const accountFromConfig = (entry) => ({
     ...entry,
+    pdsUrl: entry.pdsUrl || config.pdsUrl,
+    pdsHost: entry.pdsHost || deriveHost(entry.pdsUrl || config.pdsUrl),
     loginIdentifier: entry.loginIdentifier || entry.handle,
     mediaPostText: entry.mediaPostText || `${entry.postText} image`,
     shortHandle: entry.handle.replace(/^@/, ''),

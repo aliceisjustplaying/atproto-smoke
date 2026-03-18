@@ -44,7 +44,7 @@ export const createDualActions = ({
     await wait(page, 500);
     await page.getByText('Custom').evaluate((el) => el.click());
     await wait(page, 500);
-    await page.getByPlaceholder('my-server.com').fill(config.pdsHost);
+    await page.getByPlaceholder('my-server.com').fill(account.pdsHost || config.pdsHost);
     await page.getByRole('button', { name: 'Done' }).evaluate((el) => el.click());
     await wait(page, 500);
     const close = page.getByRole('button', { name: 'Close welcome modal' });

@@ -16,6 +16,8 @@ export const runDualFromConfig = async (config) => {
     startedAt: new Date().toISOString(),
     appUrl: config.appUrl,
     pdsUrl: config.pdsUrl,
+    primaryPdsUrl: config.primary?.pdsUrl || config.pdsUrl,
+    secondaryPdsUrl: config.secondary?.pdsUrl || config.pdsUrl,
     publicApiUrl: config.publicApiUrl,
     targetHandle: config.targetHandle,
     remoteReplyPostUrl: config.remoteReplyPostUrl,
