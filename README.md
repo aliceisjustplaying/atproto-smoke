@@ -76,6 +76,18 @@ The config surface is intentionally small — suite-level settings (`pdsUrl`, `a
 
 Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md) for representative CLI output and `summary.json` shape.
 
+For the local `pdslab.net` smoke lab, the committed non-secret target inventory
+lives in [`src/lab/pdslab-targets.mjs`](./src/lab/pdslab-targets.mjs). If you
+also have the local credential ledger in `.tmp/smoke-accounts.local.json`, you
+can generate runnable configs into `.tmp/generated/pdslab-configs/` with:
+
+```sh
+npm run write:pdslab-configs
+```
+
+That writes one config per runnable target plus an `inventory.json` summary,
+while keeping passwords out of git.
+
 ## Future direction
 
 The long-term shape is a test pyramid: direct PDS/AppView contract tests at the bottom, cross-service integration checks in the middle, and a thinner `bsky.app` browser smoke on top. The browser layer stays because it catches real [social-app](https://github.com/bluesky-social/social-app) assumptions that API tests miss.
