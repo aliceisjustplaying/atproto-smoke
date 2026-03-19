@@ -2,6 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from './lib/playwright-runtime.mjs';
+import {
+  attachPageLogging,
+  closeBrowserSafely,
+  createProgressEmitter,
+  finalizeSummary,
+  launchBrowserWithFallback,
+} from './lib/runtime-utils.mjs';
 import { runSingleScenario } from './lib/single-scenario.mjs';
 import { createSingleActions } from './lib/single-actions.mjs';
 
@@ -53,65 +60,12 @@ export const runSingleFromConfig = async (config) => {
   { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
 ];
   const progressEnabled = config.progress !== false;
-
-  const emitProgress = (status, name, detail = '') => {
-  if (!progressEnabled) {
-    return;
-  }
-  const timestamp = new Date().toISOString();
-  const suffix = detail ? ` ${detail}` : '';
-  console.error(`[${timestamp}] [${status}] ${name}${suffix}`);
-  };
+  const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
   const AVATAR_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC';
 
-  const browserCandidates = async () => {
-  const base = {
-    headless: config.headless !== false,
-    chromiumSandbox: true,
-  };
-  const candidates = [];
-  if (config.browserExecutablePath) {
-    candidates.push({
-      label: `executable:${config.browserExecutablePath}`,
-      options: { ...base, executablePath: config.browserExecutablePath },
-    });
-  }
-  const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  if (!config.browserExecutablePath) {
-    try {
-      await fs.access(systemChrome);
-      candidates.push({
-        label: 'system-google-chrome',
-        options: { ...base, executablePath: systemChrome },
-      });
-    } catch {
-      // Fall back to Playwright-managed Chromium below.
-    }
-  }
-  candidates.push({
-    label: 'playwright-chromium',
-    options: { ...base, channel: 'chromium' },
-  });
-  return candidates;
-};
-
-  const launchBrowser = async () => {
-  const errors = [];
-  for (const candidate of await browserCandidates()) {
-    try {
-      const browser = await chromium.launch(candidate.options);
-      summary.notes.push(`browser launch candidate succeeded: ${candidate.label}`);
-      return browser;
-    } catch (error) {
-      errors.push(`${candidate.label}: ${String(error?.message ?? error)}`);
-    }
-  }
-  throw new Error(`unable to launch browser via any candidate: ${errors.join(' | ')}`);
-};
-
-  const browser = await launchBrowser();
+  const browser = await launchBrowserWithFallback({ chromium, config, summary });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
   });
@@ -121,48 +75,7 @@ export const runSingleFromConfig = async (config) => {
     summary.notes.push(`requested browser executable: ${config.browserExecutablePath}`);
   }
 
-  page.on('console', (msg) => {
-    summary.console.push({
-      type: msg.type(),
-      text: msg.text(),
-    });
-  });
-
-  page.on('pageerror', (error) => {
-    summary.pageErrors.push({
-      message: String(error?.message ?? error),
-      stack: error?.stack,
-    });
-  });
-
-  page.on('requestfailed', (req) => {
-    summary.requestFailures.push({
-      url: req.url(),
-      method: req.method(),
-      errorText: req.failure()?.errorText ?? 'unknown',
-    });
-  });
-
-  page.on('response', (res) => {
-    const status = res.status();
-    if (res.url().includes('/xrpc/')) {
-      summary.xrpc.push({
-        url: res.url(),
-        status,
-        method: res.request().method(),
-      });
-      if (summary.xrpc.length > 200) {
-        summary.xrpc.shift();
-      }
-    }
-    if (status >= 400) {
-      summary.httpFailures.push({
-        url: res.url(),
-        status,
-        method: res.request().method(),
-      });
-    }
-  });
+  attachPageLogging({ summary, page, xrpcLimit: 200 });
 
   const screenshot = async (name) => {
     const file = path.join(config.artifactsDir, `${name}.png`);
@@ -331,22 +244,13 @@ const {
     summary.fatal = String(error?.message ?? error);
   }
 
-  summary.finishedAt = new Date().toISOString();
-  summary.unexpected = {
-    console: summary.console.filter((entry) => !isIgnoredConsole(entry)),
-    requestFailures: summary.requestFailures.filter((entry) => !isIgnoredRequestFailure(entry)),
-    httpFailures: summary.httpFailures.filter((entry) => !isIgnoredHttpFailure(entry)),
-    pageErrors: summary.pageErrors,
-  };
-  summary.unexpected.total =
-    summary.unexpected.console.length +
-    summary.unexpected.requestFailures.length +
-    summary.unexpected.httpFailures.length +
-    summary.unexpected.pageErrors.length;
-  if (!summary.fatal && config.strictErrors !== false && summary.unexpected.total > 0) {
-    summary.fatal = `Unexpected browser/runtime errors: ${summary.unexpected.total}`;
-  }
-  summary.ok = !summary.fatal;
+  finalizeSummary({
+    summary,
+    strictErrors: config.strictErrors,
+    isIgnoredConsole,
+    isIgnoredRequestFailure,
+    isIgnoredHttpFailure,
+  });
   await screenshot('final').catch(() => undefined);
   await fs.writeFile(
     path.join(config.artifactsDir, 'summary.json'),
@@ -354,14 +258,7 @@ const {
     'utf8',
   );
   console.log(JSON.stringify(summary, null, 2));
-  await Promise.race([
-    browser.close(),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('browser close timed out after 15000ms')), 15000);
-    }),
-  ]).catch((error) => {
-    summary.notes.push(String(error?.message ?? error));
-  });
+  await closeBrowserSafely({ browser, summary });
   return summary;
 };
 

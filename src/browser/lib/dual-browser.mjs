@@ -1,6 +1,12 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from './playwright-runtime.mjs';
+import {
+  attachPageLogging,
+  closeBrowserSafely,
+  createProgressEmitter,
+  finalizeSummary,
+  launchBrowserWithFallback,
+} from './runtime-utils.mjs';
 
 const ignoredConsole = [
   /events\.bsky\.app\/.*ERR_BLOCKED_BY_CLIENT/i,
@@ -32,103 +38,8 @@ const ignoredHttpFailure = [
   { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
 ];
 
-const browserCandidates = async (config) => {
-  const base = {
-    headless: config.headless !== false,
-    chromiumSandbox: true,
-  };
-  const candidates = [];
-  if (config.browserExecutablePath) {
-    candidates.push({
-      label: `executable:${config.browserExecutablePath}`,
-      options: { ...base, executablePath: config.browserExecutablePath },
-    });
-  }
-  const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  if (!config.browserExecutablePath) {
-    try {
-      await fs.access(systemChrome);
-      candidates.push({
-        label: 'system-google-chrome',
-        options: { ...base, executablePath: systemChrome },
-      });
-    } catch {
-      // Fall back to Playwright-managed Chromium below.
-    }
-  }
-  candidates.push({
-    label: 'playwright-chromium',
-    options: { ...base, channel: 'chromium' },
-  });
-  return candidates;
-};
-
-const launchBrowser = async (config, summary) => {
-  const errors = [];
-  for (const candidate of await browserCandidates(config)) {
-    try {
-      const browser = await chromium.launch(candidate.options);
-      summary.notes.push(`browser launch candidate succeeded: ${candidate.label}`);
-      return browser;
-    } catch (error) {
-      errors.push(`${candidate.label}: ${String(error?.message ?? error)}`);
-    }
-  }
-  throw new Error(`unable to launch browser via any candidate: ${errors.join(' | ')}`);
-};
-
-const attachPageLogging = (summary, name, page) => {
-  page.on('console', (msg) => {
-    summary.console.push({
-      page: name,
-      type: msg.type(),
-      text: msg.text(),
-    });
-  });
-
-  page.on('pageerror', (error) => {
-    summary.pageErrors.push({
-      page: name,
-      message: String(error?.message ?? error),
-      stack: error?.stack,
-    });
-  });
-
-  page.on('requestfailed', (req) => {
-    summary.requestFailures.push({
-      page: name,
-      url: req.url(),
-      method: req.method(),
-      errorText: req.failure()?.errorText ?? 'unknown',
-    });
-  });
-
-  page.on('response', (res) => {
-    const status = res.status();
-    if (res.url().includes('/xrpc/')) {
-      summary.xrpc.push({
-        page: name,
-        url: res.url(),
-        status,
-        method: res.request().method(),
-      });
-      if (summary.xrpc.length > 300) {
-        summary.xrpc.shift();
-      }
-    }
-    if (status >= 400) {
-      summary.httpFailures.push({
-        page: name,
-        url: res.url(),
-        status,
-        method: res.request().method(),
-      });
-    }
-  });
-};
-
 export const setupDualBrowser = async ({ config, summary }) => {
-  const browser = await launchBrowser(config, summary);
+  const browser = await launchBrowserWithFallback({ chromium, config, summary });
   const primaryContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
   });
@@ -138,8 +49,8 @@ export const setupDualBrowser = async ({ config, summary }) => {
   const primaryPage = await primaryContext.newPage();
   const secondaryPage = await secondaryContext.newPage();
 
-  attachPageLogging(summary, 'primary', primaryPage);
-  attachPageLogging(summary, 'secondary', secondaryPage);
+  attachPageLogging({ summary, page: primaryPage, pageName: 'primary', xrpcLimit: 300 });
+  attachPageLogging({ summary, page: secondaryPage, pageName: 'secondary', xrpcLimit: 300 });
 
   return {
     browser,
@@ -155,14 +66,7 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
   const progressEnabled = config.progress !== false;
   const pageFor = (name) => (name === 'primary' ? primaryPage : secondaryPage);
 
-  const emitProgress = (status, name, detail = '') => {
-    if (!progressEnabled) {
-      return;
-    }
-    const timestamp = new Date().toISOString();
-    const suffix = detail ? ` ${detail}` : '';
-    console.error(`[${timestamp}] [${status}] ${name}${suffix}`);
-  };
+  const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
   const screenshot = async (pageName, name) => {
     const page = pageFor(pageName);
@@ -279,4 +183,23 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     buttonText,
     dismissBlockingOverlays,
   };
+};
+
+export const finalizeDualSummary = ({
+  summary,
+  config,
+  screenshot,
+  browser,
+}) => {
+  finalizeSummary({
+    summary,
+    strictErrors: config.strictErrors,
+    isIgnoredConsole,
+    isIgnoredRequestFailure,
+    isIgnoredHttpFailure,
+  });
+  return Promise.all([
+    screenshot('primary', 'final').catch(() => undefined),
+    screenshot('secondary', 'final').catch(() => undefined),
+  ]).then(() => closeBrowserSafely({ browser, summary })).then(() => summary);
 };

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupDualBrowser, createDualStepHelpers } from './lib/dual-browser.mjs';
+import { finalizeDualSummary } from './lib/dual-browser.mjs';
 import { createDualApiHelpers } from './lib/dual-api.mjs';
 import { createListHelpers } from './lib/lists.mjs';
 import { createSettingsHelpers } from './lib/settings.mjs';
@@ -193,38 +194,18 @@ export const runDualFromConfig = async (config) => {
     summary.fatal = String(error?.message ?? error);
   }
 
-  summary.finishedAt = new Date().toISOString();
-  summary.unexpected = {
-    console: summary.console.filter((entry) => !isIgnoredConsole(entry)),
-    requestFailures: summary.requestFailures.filter((entry) => !isIgnoredRequestFailure(entry)),
-    httpFailures: summary.httpFailures.filter((entry) => !isIgnoredHttpFailure(entry)),
-    pageErrors: summary.pageErrors,
-  };
-  summary.unexpected.total =
-    summary.unexpected.console.length +
-    summary.unexpected.requestFailures.length +
-    summary.unexpected.httpFailures.length +
-    summary.unexpected.pageErrors.length;
-  if (!summary.fatal && config.strictErrors !== false && summary.unexpected.total > 0) {
-    summary.fatal = `Unexpected browser/runtime errors: ${summary.unexpected.total}`;
-  }
-  summary.ok = !summary.fatal;
-  await screenshot('primary', 'final').catch(() => undefined);
-  await screenshot('secondary', 'final').catch(() => undefined);
+  await finalizeDualSummary({
+    summary,
+    config,
+    screenshot,
+    browser,
+  });
   await fs.writeFile(
     path.join(config.artifactsDir, 'summary.json'),
     JSON.stringify(summary, null, 2) + '\n',
     'utf8',
   );
   console.log(JSON.stringify(summary, null, 2));
-  await Promise.race([
-    browser.close(),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('browser close timed out after 15000ms')), 15000);
-    }),
-  ]).catch((error) => {
-    summary.notes.push(String(error?.message ?? error));
-  });
   return summary;
 };
 
