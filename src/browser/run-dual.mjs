@@ -199,6 +199,9 @@ export const runDualFromConfig = async (config) => {
     config,
     screenshot,
     browser,
+    isIgnoredConsole,
+    isIgnoredRequestFailure,
+    isIgnoredHttpFailure,
   });
   await fs.writeFile(
     path.join(config.artifactsDir, 'summary.json'),

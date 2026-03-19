@@ -190,6 +190,9 @@ export const finalizeDualSummary = ({
   config,
   screenshot,
   browser,
+  isIgnoredConsole,
+  isIgnoredRequestFailure,
+  isIgnoredHttpFailure,
 }) => {
   finalizeSummary({
     summary,
