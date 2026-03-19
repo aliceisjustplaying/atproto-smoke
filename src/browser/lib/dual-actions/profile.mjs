@@ -56,7 +56,7 @@ export const createDualProfileActions = ({
   };
 
   const completeAgeAssuranceIfNeeded = async (page, account) => {
-    const addBirthdate = page.getByRole('button', { name: /update your birthdate/i });
+    const addBirthdate = page.getByRole('button', { name: /(?:update|add) your birthdate/i });
     if (await addBirthdate.count()) {
       await addBirthdate.click({ noWaitAfter: true });
       await wait(page, 800);
@@ -133,6 +133,7 @@ export const createDualProfileActions = ({
       lastRendered = await readRenderedProfileCounts(page);
       const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
         token: viewerAccount?.accessJwt,
+        pdsUrl: viewerAccount?.pdsUrl,
         params: { actor: profileHandle },
         timeoutMs: 15000,
       });
@@ -166,6 +167,7 @@ export const createDualProfileActions = ({
     const rendered = await readRenderedProfileCounts(page);
     const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
       token: viewerAccount?.accessJwt,
+      pdsUrl: viewerAccount?.pdsUrl,
       params: { actor: profileHandle },
       timeoutMs: 15000,
     });
@@ -299,12 +301,14 @@ export const createDualProfileActions = ({
 
   const verifyLocalProfileAfterEdit = async (account) => {
     const didResult = await xrpcJson('com.atproto.identity.resolveHandle', {
+      pdsUrl: account.pdsUrl,
       params: { handle: account.handle },
     });
     if (!didResult.ok || didResult.json?.did !== account.did) {
       throw new Error(`handle did mismatch for ${account.handle}`);
     }
     const result = await xrpcJson('com.atproto.repo.getRecord', {
+      pdsUrl: account.pdsUrl,
       params: {
         repo: account.did,
         collection: 'app.bsky.actor.profile',
