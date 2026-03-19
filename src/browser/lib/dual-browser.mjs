@@ -102,11 +102,12 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
   const step = async (name, fn, { optional = false, pageNames = [], timeoutMs } = {}) => {
     const effectiveTimeoutMs = Number(timeoutMs || stepTimeoutMs);
     emitProgress('start', name);
+    let timeoutId;
     try {
       const result = await Promise.race([
         fn(),
         new Promise((_, reject) => {
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(new Error(`step timed out after ${effectiveTimeoutMs}ms`));
           }, effectiveTimeoutMs);
         }),
@@ -132,6 +133,10 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
         throw error;
       }
       return null;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   };
 
