@@ -67,11 +67,7 @@ export const createDualApiHelpers = ({ config }) => {
     const result = await run();
     const shouldRetryWithAppViewProxy =
       !result.ok &&
-      nsid.startsWith('app.bsky.') &&
-      (
-        (result.status === 501 && /atproto-proxy/i.test(result.text || '')) ||
-        (result.status === 404 && (!result.text || result.json?.error === 'MethodNotFound'))
-      );
+      nsid.startsWith('app.bsky.');
     if (shouldRetryWithAppViewProxy) {
       return run({
         'atproto-proxy': 'did:web:api.bsky.app#bsky_appview',
