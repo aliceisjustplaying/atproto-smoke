@@ -40,6 +40,23 @@ export const createDualApiHelpers = ({ config }) => {
     return { ok: res.ok, status: res.status, url: res.url };
   };
 
+  const normalizeRepoRecord = (record) => {
+    if (
+      record &&
+      record.value &&
+      typeof record.value === 'object' &&
+      record.value.value &&
+      typeof record.value.value === 'object' &&
+      typeof record.value.value.$type === 'string'
+    ) {
+      return {
+        ...record,
+        value: record.value.value,
+      };
+    }
+    return record;
+  };
+
   const xrpcJson = async (nsid, { method = 'GET', token, params, body, timeoutMs, pdsUrl } = {}) => {
     const basePdsUrl = pdsUrl || config.pdsUrl;
     const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
@@ -91,7 +108,7 @@ export const createDualApiHelpers = ({ config }) => {
         `listRecords failed for ${account.handle} collection ${collection}: ${result.status} ${result.text}`,
       );
     }
-    return result.json?.records || [];
+    return (result.json?.records || []).map(normalizeRepoRecord);
   };
 
   const listOwnPosts = async (account, limit = 100) =>
