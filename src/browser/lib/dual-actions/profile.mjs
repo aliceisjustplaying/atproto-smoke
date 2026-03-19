@@ -35,7 +35,7 @@ export const createDualProfileActions = ({
   const login = async (page, account) => {
     const loginIdentifier = account.loginIdentifier || account.handle;
     await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.getByRole('button', { name: 'Sign in' }).nth(0).click({ noWaitAfter: true });
+    await page.getByRole('button', { name: 'Sign in' }).nth(0).evaluate((el) => el.click());
     await wait(page, 1000);
     await page.getByRole('button', { name: 'Bluesky Social' }).evaluate((el) => el.click());
     await wait(page, 500);
@@ -159,28 +159,38 @@ export const createDualProfileActions = ({
     );
   };
 
-  const readProfileCountsAfterReload = async (page, viewerAccount, profileHandle) => {
-    await gotoProfile(page, profileHandle);
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
-    await wait(page, 3000);
-    await waitForProfileHandle(page, profileHandle);
-    const rendered = await readRenderedProfileCounts(page);
-    const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
-      token: viewerAccount?.accessJwt,
-      pdsUrl: viewerAccount?.pdsUrl,
-      params: { actor: profileHandle },
-      timeoutMs: 15000,
-    });
-    if (!apiResult.ok) {
-      throw new Error(`failed to read profile counts for ${profileHandle}`);
+  const readProfileCountsAfterReload = async (page, viewerAccount, profileHandle, timeoutMs = 30000) => {
+    const started = Date.now();
+    let lastError;
+    while (Date.now() - started < timeoutMs) {
+      try {
+        await gotoProfile(page, profileHandle);
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+        await wait(page, 3000);
+        await waitForProfileHandle(page, profileHandle);
+        const rendered = await readRenderedProfileCounts(page);
+        const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
+          token: viewerAccount?.accessJwt,
+          pdsUrl: viewerAccount?.pdsUrl,
+          params: { actor: profileHandle },
+          timeoutMs: 15000,
+        });
+        if (!apiResult.ok) {
+          throw new Error(`failed to read profile counts for ${profileHandle}`);
+        }
+        return {
+          rendered,
+          api: {
+            followersCount: apiResult.json?.followersCount,
+            followsCount: apiResult.json?.followsCount,
+          },
+        };
+      } catch (error) {
+        lastError = error;
+        await wait(page, 2000);
+      }
     }
-    return {
-      rendered,
-      api: {
-        followersCount: apiResult.json?.followersCount,
-        followsCount: apiResult.json?.followsCount,
-      },
-    };
+    throw lastError || new Error(`failed to read profile counts for ${profileHandle}`);
   };
 
   const composePost = async (page, text) => {

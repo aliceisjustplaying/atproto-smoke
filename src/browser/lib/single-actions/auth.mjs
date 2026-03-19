@@ -8,7 +8,7 @@ export const createSingleAuthActions = ({
   const login = async () => {
     const loginIdentifier = config.loginIdentifier || config.handle;
     await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.getByRole('button', { name: 'Sign in' }).nth(0).click({ noWaitAfter: true });
+    await page.getByRole('button', { name: 'Sign in' }).nth(0).evaluate((el) => el.click());
     await wait(1000);
     await page.getByRole('button', { name: 'Bluesky Social' }).evaluate((el) => el.click());
     await wait(500);
