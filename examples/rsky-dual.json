@@ -1,0 +1,14 @@
+{
+  "pdsUrl": "https://rsky.pdslab.net",
+  "artifactsDir": "data/browser-smoke/rsky-dual",
+  "targetHandle": "alice.mosphere.at",
+  "strictErrors": true,
+  "primary": {
+    "handle": "smoke-a.rsky.pdslab.net",
+    "password": "replace-me"
+  },
+  "secondary": {
+    "handle": "smoke-b.rsky.pdslab.net",
+    "password": "replace-me-too"
+  }
+}
