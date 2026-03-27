@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { setupDualBrowser, createDualStepHelpers } from './lib/dual-browser.mjs';
-import { finalizeDualSummary } from './lib/dual-browser.mjs';
+import { setupDualBrowser, createDualStepHelpers, finalizeDualSummary } from './lib/dual-browser.mjs';
 import { createDualApiHelpers } from './lib/dual-api.mjs';
 import { createListHelpers } from './lib/lists.mjs';
 import { createSettingsHelpers } from './lib/settings.mjs';

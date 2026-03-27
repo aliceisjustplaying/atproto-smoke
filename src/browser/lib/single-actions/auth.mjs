@@ -15,6 +15,8 @@ export const createSingleAuthActions = ({
       pdsHost: config.pdsHost,
       loginIdentifier,
       password: config.password,
+      notes: summary.notes,
+      noteTarget: config.handle,
     });
   };
 

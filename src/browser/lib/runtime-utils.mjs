@@ -114,7 +114,10 @@ export const loginToBlueskyApp = async ({
   pdsHost,
   loginIdentifier,
   password,
+  notes,
+  noteTarget,
 }) => {
+  let loginPath = 'legacy-service-picker';
   const activeScope = () => page.locator('[role="dialog"]').last();
 
   const clickNamedControl = async (name) => {
@@ -143,6 +146,7 @@ export const loginToBlueskyApp = async ({
     const serviceButton = page.getByTestId('selectServiceButton').first();
     const currentService = await buttonText(serviceButton).catch(() => '');
     if (!(new RegExp(pdsHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')).test(currentService)) {
+      loginPath = 'inline-provider-switcher';
       await serviceButton.click({ noWaitAfter: true, force: true });
       await page.waitForTimeout(500);
       await clickNamedControl('Custom');
@@ -150,8 +154,11 @@ export const loginToBlueskyApp = async ({
       await page.getByPlaceholder('my-server.com').fill(pdsHost);
       await page.getByRole('button', { name: 'Done' }).click({ noWaitAfter: true });
       await page.waitForTimeout(500);
+    } else {
+      loginPath = 'inline-provider-already-selected';
     }
   } else {
+    loginPath = 'legacy-service-picker';
     await clickNamedControl('Bluesky Social');
     await page.waitForTimeout(500);
     await clickNamedControl('Custom');
@@ -170,6 +177,10 @@ export const loginToBlueskyApp = async ({
   await page.getByPlaceholder('Password').fill(password);
   await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
   await page.waitForTimeout(3000);
+  if (Array.isArray(notes)) {
+    notes.push(`login path for ${noteTarget || pdsHost}: ${loginPath}`);
+  }
+  return { loginPath };
 };
 
 export const pollJsonUntil = async ({

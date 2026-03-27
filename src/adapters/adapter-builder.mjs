@@ -31,8 +31,9 @@ export const createRoleBasedAdapter = ({
   };
 
   const createExampleConfig = ({ mode }) => {
+    const { primaryHandle, secondaryHandle, ...configBase } = exampleBase;
     const base = {
-      ...exampleBase,
+      ...configBase,
       artifactsDir: `data/browser-smoke/${name}-${mode}`,
     };
 
@@ -41,7 +42,7 @@ export const createRoleBasedAdapter = ({
         ...base,
         editProfile: true,
         account: {
-          handle: exampleBase.primaryHandle,
+          handle: primaryHandle,
           password: 'replace-me',
         },
       };
@@ -50,11 +51,11 @@ export const createRoleBasedAdapter = ({
     return {
       ...base,
       primary: {
-        handle: exampleBase.primaryHandle,
+        handle: primaryHandle,
         password: 'replace-me',
       },
       secondary: {
-        handle: exampleBase.secondaryHandle,
+        handle: secondaryHandle,
         password: 'replace-me-too',
       },
     };

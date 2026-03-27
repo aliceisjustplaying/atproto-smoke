@@ -45,6 +45,8 @@ export const createDualProfileActions = ({
       pdsHost: account.pdsHost || config.pdsHost,
       loginIdentifier,
       password: account.password,
+      notes: summary.notes,
+      noteTarget: account.handle,
     });
   };
 
