@@ -2,9 +2,14 @@ import {
   createAccountConfig,
   createDualRunConfig,
   createSingleRunConfig,
-} from "../config.mjs";
+} from "../config.js";
+import type { Adapter, FlexibleRecord } from "../types.js";
 
-const createBringYourOwnExampleConfig = ({ mode }) => {
+const createBringYourOwnExampleConfig = ({
+  mode,
+}: {
+  mode: "single" | "dual";
+}): FlexibleRecord => {
   const base = {
     pdsUrl: "https://your-pds.example",
     artifactsDir: `data/browser-smoke/bring-your-own-${mode}`,
@@ -36,14 +41,21 @@ const createBringYourOwnExampleConfig = ({ mode }) => {
   };
 };
 
-const createBringYourOwnSingleConfig = ({ account, ...rest } = {}) => {
+const createBringYourOwnSingleConfig = ({
+  account,
+  ...rest
+}: FlexibleRecord = {}) => {
   return createSingleRunConfig({
     ...rest,
     account: createAccountConfig(account),
   });
 };
 
-const createBringYourOwnDualConfig = ({ primary, secondary, ...rest } = {}) => {
+const createBringYourOwnDualConfig = ({
+  primary,
+  secondary,
+  ...rest
+}: FlexibleRecord = {}) => {
   return createDualRunConfig({
     ...rest,
     primary: createAccountConfig(primary),
@@ -51,7 +63,7 @@ const createBringYourOwnDualConfig = ({ primary, secondary, ...rest } = {}) => {
   });
 };
 
-export const BRING_YOUR_OWN_ADAPTER = Object.freeze({
+export const BRING_YOUR_OWN_ADAPTER: Adapter = Object.freeze({
   name: "bring-your-own",
   description: "Use existing accounts on any PDS with minimal configuration.",
   accountStrategy: "existing-accounts",

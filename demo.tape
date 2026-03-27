@@ -24,7 +24,7 @@ Enter
 Sleep 500ms
 Show
 
-Type "node bin/atproto-smoke.mjs run-dual --config config.json"
+Type "node dist/bin/atproto-smoke.js run-dual --config config.json"
 Sleep 500ms
 Enter
 Sleep 120s

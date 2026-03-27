@@ -1,4 +1,4 @@
-import { createRoleBasedAdapter } from "./adapter-builder.mjs";
+import { createRoleBasedAdapter } from "./adapter-builder.js";
 
 export const TRANQUIL_PDS_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
   "tranquil browser smoke ",

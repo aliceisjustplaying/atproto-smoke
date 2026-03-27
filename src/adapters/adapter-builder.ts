@@ -2,7 +2,13 @@ import {
   createAccountConfig,
   createDualRunConfig,
   createSingleRunConfig,
-} from "../config.mjs";
+} from "../config.js";
+import type {
+  AccountConfig,
+  Adapter,
+  ExampleBaseConfig,
+  FlexibleRecord,
+} from "../types.js";
 
 export const createRoleBasedAdapter = ({
   name,
@@ -14,8 +20,21 @@ export const createRoleBasedAdapter = ({
   primaryCleanupPrefixes,
   secondaryCleanupPrefixes,
   dualSuiteDefaults = {},
-}) => {
-  const createAccount = ({ role = "primary", ...account } = {}) => {
+}: {
+  name: string;
+  description: string;
+  accountStrategy: string;
+  notes: string[];
+  exampleBase: ExampleBaseConfig;
+  roleDefaults: (role: string) => FlexibleRecord;
+  primaryCleanupPrefixes: readonly string[];
+  secondaryCleanupPrefixes: readonly string[];
+  dualSuiteDefaults?: FlexibleRecord;
+}): { createAccount: (raw?: FlexibleRecord) => AccountConfig; adapter: Adapter } => {
+  const createAccount = ({
+    role = "primary",
+    ...account
+  }: FlexibleRecord = {}): AccountConfig => {
     const cleanupPostPrefixes =
       role === "secondary" ? secondaryCleanupPrefixes : primaryCleanupPrefixes;
 
@@ -26,7 +45,11 @@ export const createRoleBasedAdapter = ({
     });
   };
 
-  const createExampleConfig = ({ mode }) => {
+  const createExampleConfig = ({
+    mode,
+  }: {
+    mode: "single" | "dual";
+  }): FlexibleRecord => {
     const { primaryHandle, secondaryHandle, ...configBase } = exampleBase;
     const base = {
       ...configBase,
@@ -57,7 +80,10 @@ export const createRoleBasedAdapter = ({
     };
   };
 
-  const createSingleConfig = ({ account, ...rest } = {}) => {
+  const createSingleConfig = ({
+    account,
+    ...rest
+  }: FlexibleRecord = {}) => {
     return createSingleRunConfig({
       ...rest,
       adapter: name,
@@ -68,7 +94,11 @@ export const createRoleBasedAdapter = ({
     });
   };
 
-  const createDualConfig = ({ primary, secondary, ...rest } = {}) => {
+  const createDualConfig = ({
+    primary,
+    secondary,
+    ...rest
+  }: FlexibleRecord = {}) => {
     return createDualRunConfig({
       ...dualSuiteDefaults,
       ...rest,

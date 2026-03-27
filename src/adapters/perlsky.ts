@@ -1,4 +1,4 @@
-import { createRoleBasedAdapter } from "./adapter-builder.mjs";
+import { createRoleBasedAdapter } from "./adapter-builder.js";
 
 export const PERLSKY_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
   "perlsky browser smoke ",

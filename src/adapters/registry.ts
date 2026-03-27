@@ -1,6 +1,7 @@
-import { BRING_YOUR_OWN_ADAPTER } from "./bring-your-own.mjs";
-import { PERLSKY_ADAPTER } from "./perlsky.mjs";
-import { TRANQUIL_PDS_ADAPTER } from "./tranquil-pds.mjs";
+import { BRING_YOUR_OWN_ADAPTER } from "./bring-your-own.js";
+import { PERLSKY_ADAPTER } from "./perlsky.js";
+import { TRANQUIL_PDS_ADAPTER } from "./tranquil-pds.js";
+import type { Adapter } from "../types.js";
 
 /**
  * Adapter definitions normalize raw user config into smoke-suite config.
@@ -13,15 +14,15 @@ import { TRANQUIL_PDS_ADAPTER } from "./tranquil-pds.mjs";
  * They do not provision accounts, create invites, or run lifecycle hooks.
  * Those higher-level workflows belong in per-PDS tooling around the suite.
  */
-export const ADAPTERS = Object.freeze({
+export const ADAPTERS: Readonly<Record<string, Adapter>> = Object.freeze({
   [BRING_YOUR_OWN_ADAPTER.name]: BRING_YOUR_OWN_ADAPTER,
   [PERLSKY_ADAPTER.name]: PERLSKY_ADAPTER,
   [TRANQUIL_PDS_ADAPTER.name]: TRANQUIL_PDS_ADAPTER,
 });
 
-export const ADAPTER_NAMES = Object.freeze(Object.keys(ADAPTERS));
+export const ADAPTER_NAMES: readonly string[] = Object.freeze(Object.keys(ADAPTERS));
 
-export const getAdapter = (name = "bring-your-own") => {
+export const getAdapter = (name = "bring-your-own"): Adapter => {
   const adapter = ADAPTERS[name];
   if (!adapter) {
     throw new Error(`unsupported adapter: ${name}`);
@@ -29,6 +30,6 @@ export const getAdapter = (name = "bring-your-own") => {
   return adapter;
 };
 
-export const listAdapters = () => {
+export const listAdapters = (): Adapter[] => {
   return ADAPTER_NAMES.map((name) => ADAPTERS[name]);
 };

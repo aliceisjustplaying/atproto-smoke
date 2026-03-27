@@ -3,7 +3,13 @@ import {
   ADAPTER_NAMES,
   getAdapter,
   listAdapters,
-} from "./adapters/registry.mjs";
+} from "./adapters/registry.js";
+import type {
+  DualRunConfig,
+  FlexibleRecord,
+  ParsedCliArgs,
+  SingleRunConfig,
+} from "./types.js";
 
 const adapterUsage = ADAPTER_NAMES.join("|");
 
@@ -23,8 +29,8 @@ Notes:
   - direct API/AppView contract layers are documented as a later v2 expansion
 `;
 
-const parseArgs = (argv) => {
-  const result = {
+const parseArgs = (argv: string[]): ParsedCliArgs => {
+  const result: ParsedCliArgs = {
     command: argv[2],
     adapter: "bring-your-own",
   };
@@ -36,7 +42,7 @@ const parseArgs = (argv) => {
       continue;
     }
     if (arg === "--mode") {
-      result.mode = argv[++i];
+      result.mode = argv[++i] as "single" | "dual";
       continue;
     }
     if (arg === "--adapter") {
@@ -61,7 +67,10 @@ const parseArgs = (argv) => {
   return result;
 };
 
-const normalizeMode = (command, mode) => {
+const normalizeMode = (
+  command: string | undefined,
+  mode: ParsedCliArgs["mode"],
+): ParsedCliArgs["mode"] => {
   if (command === "run-single") {
     return "single";
   }
@@ -71,7 +80,15 @@ const normalizeMode = (command, mode) => {
   return mode;
 };
 
-const normalizeConfig = ({ mode, adapter, raw }) => {
+const normalizeConfig = ({
+  mode,
+  adapter,
+  raw,
+}: {
+  mode: "single" | "dual";
+  adapter: string;
+  raw: FlexibleRecord;
+}) => {
   const selectedAdapter = getAdapter(adapter);
   if (mode === "single") {
     return selectedAdapter.createSingleConfig(raw);
@@ -82,12 +99,15 @@ const normalizeConfig = ({ mode, adapter, raw }) => {
   throw new Error(`unsupported mode: ${mode}`);
 };
 
-const loadJsonConfig = async (configPath) => {
+const loadJsonConfig = async (configPath: string): Promise<FlexibleRecord> => {
   const text = await fs.readFile(configPath, "utf8");
   return JSON.parse(text);
 };
 
-const writeJsonConfig = async (outputPath, payload) => {
+const writeJsonConfig = async (
+  outputPath: string,
+  payload: FlexibleRecord,
+): Promise<void> => {
   await fs.writeFile(
     outputPath,
     `${JSON.stringify(payload, null, 2)}\n`,
@@ -95,7 +115,7 @@ const writeJsonConfig = async (outputPath, payload) => {
   );
 };
 
-const adapterHelp = () => {
+const adapterHelp = (): string => {
   return listAdapters()
     .map((adapter) => {
       const lines = [
@@ -110,7 +130,7 @@ const adapterHelp = () => {
     .join("\n");
 };
 
-export const runCliFromArgv = async (argv = process.argv) => {
+export const runCliFromArgv = async (argv = process.argv): Promise<number> => {
   const args = parseArgs(argv);
 
   if (
@@ -170,14 +190,14 @@ export const runCliFromArgv = async (argv = process.argv) => {
   }
 
   if (args.command === "run-single") {
-    const { runSingleFromConfig } = await import("./browser/run-single.mjs");
-    const summary = await runSingleFromConfig(config);
+    const { runSingleFromConfig } = await import("./browser/run-single.js");
+    const summary = await runSingleFromConfig(config as SingleRunConfig);
     return summary.ok ? 0 : 1;
   }
 
   if (args.command === "run-dual") {
-    const { runDualFromConfig } = await import("./browser/run-dual.mjs");
-    const summary = await runDualFromConfig(config);
+    const { runDualFromConfig } = await import("./browser/run-dual.js");
+    const summary = await runDualFromConfig(config as DualRunConfig);
     return summary.ok ? 0 : 1;
   }
 

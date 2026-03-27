@@ -1,5 +1,5 @@
-import { dismissBlockingOverlays } from "../runtime-utils.mjs";
-import { createPageProfileEditActions } from "../page-profile-edit-actions.mjs";
+import { dismissBlockingOverlays } from "../runtime-utils.js";
+import { createPageProfileEditActions } from "../page-profile-edit-actions.js";
 
 export const createSingleProfileActions = ({
   config,
@@ -121,7 +121,10 @@ export const createSingleProfileActions = ({
   };
 
   const editProfile = () =>
-    pageActions.editProfile(page, { profileNote: config.profileNote });
+    pageActions.editProfile(page, {
+      profileNote: config.profileNote,
+      handle: config.handle,
+    });
 
   return {
     verifyPublicHandleResolution,

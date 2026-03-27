@@ -17,6 +17,10 @@ export const IGNORED_REQUEST_FAILURE = [
     url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts|.*\.vtt)/i,
     error: /ERR_ABORTED/i,
   },
+  {
+    url: /video\.bsky\.app\/watch\/.*\/thumbnail\.jpg/i,
+    error: /ERR_ABORTED/i,
+  },
   { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
   {
     url: /\/xrpc\/app\.bsky\.graph\.(?:muteActor|unmuteActor)/i,
@@ -29,6 +33,14 @@ export const IGNORED_REQUEST_FAILURE = [
   { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed/i, error: /ERR_ABORTED/i },
   {
     url: /\/xrpc\/app\.bsky\.graph\.getSuggestedFollowsByActor/i,
+    error: /ERR_ABORTED/i,
+  },
+  {
+    url: /\/xrpc\/app\.bsky\.feed\.getPosts/i,
+    error: /ERR_ABORTED/i,
+  },
+  {
+    url: /\/xrpc\/app\.bsky\.unspecced\.getPostThreadV2/i,
     error: /ERR_ABORTED/i,
   },
   {

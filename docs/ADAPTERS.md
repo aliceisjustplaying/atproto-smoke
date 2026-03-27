@@ -67,7 +67,7 @@ generic smoke suite.
 
 ## Minimal Adapter Contract
 
-The current registry lives in `src/adapters/registry.mjs`. A built-in adapter
+The current registry lives in `src/adapters/registry.ts`. A built-in adapter
 definition looks like this in practice:
 
 ```js

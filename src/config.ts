@@ -1,3 +1,11 @@
+import type {
+  AccountConfig,
+  DualRunConfig,
+  FlexibleRecord,
+  SingleRunConfig,
+  SuiteConfig,
+} from "./types.js";
+
 const DEFAULTS = {
   appUrl: "https://bsky.app",
   publicApiUrl: "https://public.api.bsky.app",
@@ -9,14 +17,14 @@ const DEFAULTS = {
   publicChecks: true,
 };
 
-const requireString = (value, label) => {
+const requireString = (value: unknown, label: string): string => {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} is required`);
   }
   return value;
 };
 
-const optionalString = (value) => {
+const optionalString = (value: unknown): string | undefined => {
   if (value === undefined || value === null) {
     return undefined;
   }
@@ -27,7 +35,7 @@ const optionalString = (value) => {
   return trimmed === "" ? undefined : trimmed;
 };
 
-const optionalPostUrl = (value, label) => {
+const optionalPostUrl = (value: unknown, label: string): string | undefined => {
   const maybe = optionalString(value);
   if (!maybe) {
     return undefined;
@@ -47,7 +55,7 @@ const optionalPostUrl = (value, label) => {
   return url.toString();
 };
 
-const normalizeCleanupPrefixes = (prefixes) => {
+const normalizeCleanupPrefixes = (prefixes: unknown): string[] => {
   if (prefixes === undefined) {
     return [];
   }
@@ -61,14 +69,14 @@ const normalizeCleanupPrefixes = (prefixes) => {
       }
       return value.length ? value : undefined;
     })
-    .filter(Boolean);
+    .filter((value): value is string => value !== undefined);
 };
 
-export const derivePdsHost = (pdsUrl) => {
+export const derivePdsHost = (pdsUrl: string): string | undefined => {
   try {
     return new URL(pdsUrl).host;
   } catch {
-    const match = String(pdsUrl).match(/^https?:\/\/([^/]+)/);
+    const match = /^https?:\/\/([^/]+)/.exec(pdsUrl);
     return match?.[1];
   }
 };
@@ -85,11 +93,11 @@ export const createAccountConfig = ({
   profileNote,
   cleanupPostPrefixes,
   ...rest
-} = {}) => {
-  const normalized = {
+}: FlexibleRecord = {}): AccountConfig => {
+  const normalized: AccountConfig = {
     handle: requireString(handle, "account.handle"),
     password: requireString(password, "account.password"),
-    birthdate: optionalString(birthdate) || DEFAULTS.birthdate,
+    birthdate: optionalString(birthdate) ?? DEFAULTS.birthdate,
     cleanupPostPrefixes: normalizeCleanupPrefixes(cleanupPostPrefixes),
     ...rest,
   };
@@ -140,27 +148,28 @@ export const createSuiteConfig = ({
   browserExecutablePath,
   adapter,
   ...rest
-} = {}) => {
+}: FlexibleRecord = {}): SuiteConfig => {
   const normalized = {
     pdsUrl: requireString(pdsUrl, "pdsUrl"),
     artifactsDir: requireString(artifactsDir, "artifactsDir"),
-    appUrl: optionalString(appUrl) || DEFAULTS.appUrl,
-    publicApiUrl: optionalString(publicApiUrl) || DEFAULTS.publicApiUrl,
+    appUrl: optionalString(appUrl) ?? DEFAULTS.appUrl,
+    publicApiUrl: optionalString(publicApiUrl) ?? DEFAULTS.publicApiUrl,
     publicCheckTimeoutMs: Number(
-      publicCheckTimeoutMs || DEFAULTS.publicCheckTimeoutMs,
+      publicCheckTimeoutMs ?? DEFAULTS.publicCheckTimeoutMs,
     ),
-    stepTimeoutMs: Number(stepTimeoutMs || DEFAULTS.stepTimeoutMs),
+    stepTimeoutMs: Number(stepTimeoutMs ?? DEFAULTS.stepTimeoutMs),
     headless: Boolean(headless),
     strictErrors: Boolean(strictErrors),
     publicChecks: Boolean(publicChecks),
     ...rest,
-  };
+  } as SuiteConfig;
 
-  normalized.pdsHost =
-    optionalString(pdsHost) || derivePdsHost(normalized.pdsUrl);
-  if (!normalized.pdsHost) {
+  const derivedPdsHost =
+    optionalString(pdsHost) ?? derivePdsHost(normalized.pdsUrl);
+  if (!derivedPdsHost) {
     throw new Error("pdsHost could not be derived from pdsUrl");
   }
+  normalized.pdsHost = derivedPdsHost;
 
   const maybeTarget = optionalString(targetHandle);
   if (maybeTarget) {
@@ -192,7 +201,7 @@ export const createSingleRunConfig = ({
   account,
   editProfile = false,
   ...rest
-} = {}) => {
+}: FlexibleRecord = {}): SingleRunConfig => {
   const suite = createSuiteConfig(rest);
   if (!suite.targetHandle) {
     throw new Error("targetHandle is required for single-mode runs");
@@ -201,7 +210,7 @@ export const createSingleRunConfig = ({
     ...suite,
     ...createAccountConfig(account),
     editProfile: Boolean(editProfile),
-  };
+  } as SingleRunConfig;
 };
 
 export const createDualRunConfig = ({
@@ -209,8 +218,8 @@ export const createDualRunConfig = ({
   secondary,
   accountSource,
   ...rest
-} = {}) => {
-  const normalized = {
+}: FlexibleRecord = {}): DualRunConfig => {
+  const normalized: DualRunConfig = {
     ...createSuiteConfig(rest),
     primary: createAccountConfig(primary),
     secondary: createAccountConfig(secondary),

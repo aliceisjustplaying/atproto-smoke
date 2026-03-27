@@ -1,5 +1,6 @@
 import path from "node:path";
-import { chromium } from "./playwright-runtime.mjs";
+import type { Page } from "playwright";
+import { chromium } from "./playwright-runtime.js";
 import {
   attachPageLogging,
   buttonText,
@@ -9,12 +10,13 @@ import {
   finalizeSummary,
   launchBrowserWithFallback,
   normalizeText,
-} from "./runtime-utils.mjs";
+} from "./runtime-utils.js";
 import {
   isIgnoredConsoleEntry,
   isIgnoredHttpFailureEntry,
   isIgnoredRequestFailureEntry,
-} from "./failure-rules.mjs";
+} from "./failure-rules.js";
+import type { Summary } from "../../types.js";
 
 export const setupDualBrowser = async ({ config, summary }) => {
   const browser = await launchBrowserWithFallback({
@@ -58,14 +60,20 @@ export const createDualStepHelpers = ({
   summary,
   primaryPage,
   secondaryPage,
+}: {
+  config: { artifactsDir: string; progress?: boolean; stepTimeoutMs?: number };
+  summary: Summary;
+  primaryPage: Page;
+  secondaryPage: Page;
 }) => {
   const stepTimeoutMs = Number(config.stepTimeoutMs || 120000);
   const progressEnabled = config.progress !== false;
-  const pageFor = (name) => (name === "primary" ? primaryPage : secondaryPage);
+  const pageFor = (name: string): Page =>
+    name === "primary" ? primaryPage : secondaryPage;
 
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
-  const screenshot = async (pageName, name) => {
+  const screenshot = async (pageName: string, name: string): Promise<string> => {
     const page = pageFor(pageName);
     const file = path.join(config.artifactsDir, `${name}-${pageName}.png`);
     await page.screenshot({ path: file, fullPage: true });
@@ -77,8 +85,8 @@ export const createDualStepHelpers = ({
     emitProgress,
     defaultTimeoutMs: stepTimeoutMs,
     captureArtifacts: async ({ name, pageNames, failed }) => {
-      const screenshots = {};
-      for (const pageName of pageNames) {
+      const screenshots: Record<string, string | undefined> = {};
+      for (const pageName of pageNames ?? []) {
         screenshots[pageName] = await screenshot(
           pageName,
           failed ? `${name}-error` : name,
@@ -88,7 +96,7 @@ export const createDualStepHelpers = ({
     },
   });
 
-  const wait = async (page, ms) => {
+  const wait = async (page: Page, ms: number): Promise<void> => {
     await page.waitForTimeout(ms);
   };
 

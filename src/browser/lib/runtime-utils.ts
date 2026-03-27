@@ -1,16 +1,28 @@
 import fs from "node:fs/promises";
+import type { Browser, Locator, Page } from "playwright";
+import type {
+  FetchJsonResult,
+  FetchStatusResult,
+  FlexibleRecord,
+  Summary,
+} from "../../types.js";
 
 const SYSTEM_GOOGLE_CHROME =
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
+export const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export const AVATAR_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC";
 
-export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
-export const normalizeText = (text) => (text || "").replace(/\s+/g, " ").trim();
+export const normalizeText = (text: string | null | undefined): string =>
+  (text || "").replace(/\s+/g, " ").trim();
 
-export const createBaseSummary = (fields = {}) => ({
+export const createBaseSummary = (fields: FlexibleRecord = {}): Summary => ({
   startedAt: new Date().toISOString(),
   steps: [],
   console: [],
@@ -22,7 +34,12 @@ export const createBaseSummary = (fields = {}) => ({
   ...fields,
 });
 
-export const recordStep = (summary, name, status, extra = {}) => {
+export const recordStep = (
+  summary: Summary,
+  name: string,
+  status: string,
+  extra: FlexibleRecord = {},
+): void => {
   summary.steps.push({
     name,
     status,
@@ -36,15 +53,32 @@ export const createStepRunner = ({
   emitProgress,
   captureArtifacts,
   defaultTimeoutMs,
+}: {
+  summary: Summary;
+  emitProgress: (status: string, name: string, detail?: string) => void;
+  captureArtifacts: (args: {
+    name: string;
+    pageNames?: string[];
+    failed: boolean;
+  }) => Promise<FlexibleRecord>;
+  defaultTimeoutMs?: number;
 }) => {
   return async (
-    name,
-    fn,
-    { optional = false, timeoutMs, pageNames = [] } = {},
-  ) => {
+    name: string,
+    fn: () => Promise<unknown>,
+    {
+      optional = false,
+      timeoutMs,
+      pageNames = [],
+    }: {
+      optional?: boolean;
+      timeoutMs?: number;
+      pageNames?: string[];
+    } = {},
+  ): Promise<unknown> => {
     const effectiveTimeoutMs = Number(timeoutMs || defaultTimeoutMs || 0);
     emitProgress("start", name);
-    let timeoutId;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       const result =
         effectiveTimeoutMs > 0
@@ -64,7 +98,10 @@ export const createStepRunner = ({
         pageNames,
         failed: false,
       });
-      recordStep(summary, name, "ok", { ...artifacts, ...(result ?? {}) });
+      recordStep(summary, name, "ok", {
+        ...artifacts,
+        ...((result as FlexibleRecord | null) ?? {}),
+      });
       emitProgress("ok", name);
       return result;
     } catch (error) {
@@ -75,12 +112,12 @@ export const createStepRunner = ({
       });
       recordStep(summary, name, optional ? "skipped" : "failed", {
         ...artifacts,
-        error: String(error?.message ?? error),
+        error: errorMessage(error),
       });
       emitProgress(
         optional ? "skip" : "fail",
         name,
-        String(error?.message ?? error),
+        errorMessage(error),
       );
       if (!optional) {
         throw error;
@@ -94,12 +131,14 @@ export const createStepRunner = ({
   };
 };
 
-export const buildBrowserLaunchCandidates = async (config) => {
+export const buildBrowserLaunchCandidates = async (
+  config: FlexibleRecord,
+): Promise<{ label: string; options: FlexibleRecord }[]> => {
   const base = {
     headless: config.headless !== false,
     chromiumSandbox: true,
   };
-  const candidates = [];
+  const candidates: { label: string; options: FlexibleRecord }[] = [];
   if (config.browserExecutablePath) {
     candidates.push({
       label: `executable:${config.browserExecutablePath}`,
@@ -124,39 +163,49 @@ export const buildBrowserLaunchCandidates = async (config) => {
   return candidates;
 };
 
-export const fetchJsonWithTimeout = async (url, options = {}) => {
-  const timeoutMs = options.timeoutMs ?? 30000;
+export const fetchJsonWithTimeout = async (
+  url: string,
+  options: FlexibleRecord = {},
+): Promise<FetchJsonResult> => {
+  const timeoutMs =
+    typeof options.timeoutMs === "number" ? options.timeoutMs : 30000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const fetchOptions = {
-    ...options,
+  const fetchOptions: RequestInit & { timeoutMs?: number } = {
+    ...(options as RequestInit),
     signal: controller.signal,
   };
   delete fetchOptions.timeoutMs;
-  let res;
+  let res: Response;
   try {
     res = await fetch(url, fetchOptions);
   } finally {
     clearTimeout(timer);
   }
   const text = await res.text();
-  let json;
+  let json: FetchJsonResult["json"];
   try {
-    json = text ? JSON.parse(text) : null;
+    json = text ? (JSON.parse(text) as FetchJsonResult["json"]) : null;
   } catch {
     json = null;
   }
   return { ok: res.ok, status: res.status, text, json };
 };
 
-export const fetchStatusWithTimeout = async (url, options = {}) => {
-  const timeoutMs = options.timeoutMs ?? 30000;
+export const fetchStatusWithTimeout = async (
+  url: string,
+  options: FlexibleRecord = {},
+): Promise<FetchStatusResult> => {
+  const timeoutMs =
+    typeof options.timeoutMs === "number" ? options.timeoutMs : 30000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const redirect =
+      typeof options.redirect === "string" ? options.redirect : "follow";
     const res = await fetch(url, {
-      ...options,
-      redirect: options.redirect || "follow",
+      ...(options as RequestInit),
+      redirect: redirect as RequestRedirect,
       signal: controller.signal,
     });
     return { ok: res.ok, status: res.status, url: res.url };
@@ -165,7 +214,7 @@ export const fetchStatusWithTimeout = async (url, options = {}) => {
   }
 };
 
-export const buttonText = async (locator) => {
+export const buttonText = async (locator: Locator): Promise<string> => {
   const label = await locator.getAttribute("aria-label");
   if (label && label.trim()) {
     return label.trim();
@@ -174,7 +223,7 @@ export const buttonText = async (locator) => {
   return text.trim();
 };
 
-export const dismissBlockingOverlays = async (page) => {
+export const dismissBlockingOverlays = async (page: Page): Promise<void> => {
   const backdrop = page.locator('[aria-label*="click to close"]').last();
   if (await backdrop.count()) {
     await backdrop
@@ -203,11 +252,19 @@ export const loginToBlueskyApp = async ({
   password,
   notes,
   noteTarget,
-}) => {
+}: {
+  page: Page;
+  appUrl: string;
+  pdsHost: string;
+  loginIdentifier: string;
+  password: string;
+  notes?: string[];
+  noteTarget?: string;
+}): Promise<{ loginPath: string }> => {
   let loginPath = "legacy-service-picker";
   const activeScope = () => page.locator('[role="dialog"]').last();
 
-  const clickNamedControl = async (name) => {
+  const clickNamedControl = async (name: string): Promise<void> => {
     const scope = activeScope();
     const asButton = scope.getByRole("button", { name }).first();
     if (await asButton.count()) {
@@ -292,9 +349,16 @@ export const pollJsonUntil = async ({
   timeoutMs,
   fetchJson,
   intervalMs = 5000,
-}) => {
+}: {
+  name: string;
+  buildUrl: () => string;
+  predicate: (result: FetchJsonResult) => boolean;
+  timeoutMs: number;
+  fetchJson: (url: string, options?: FlexibleRecord) => Promise<FetchJsonResult>;
+  intervalMs?: number;
+}): Promise<FetchJsonResult> => {
   const started = Date.now();
-  let last;
+  let last: FetchJsonResult | undefined;
   while (Date.now() - started < timeoutMs) {
     last = await fetchJson(buildUrl(), {
       timeoutMs: Math.min(timeoutMs, 30000),
@@ -313,8 +377,12 @@ export const launchBrowserWithFallback = async ({
   chromium,
   config,
   summary,
-}) => {
-  const errors = [];
+}: {
+  chromium: { launch: (options: FlexibleRecord) => Promise<Browser> };
+  config: FlexibleRecord;
+  summary: Summary;
+}): Promise<Browser> => {
+  const errors: string[] = [];
   for (const candidate of await buildBrowserLaunchCandidates(config)) {
     try {
       const browser = await chromium.launch(candidate.options);
@@ -323,7 +391,7 @@ export const launchBrowserWithFallback = async ({
       );
       return browser;
     } catch (error) {
-      errors.push(`${candidate.label}: ${String(error?.message ?? error)}`);
+      errors.push(`${candidate.label}: ${errorMessage(error)}`);
     }
   }
   throw new Error(
@@ -336,7 +404,12 @@ export const attachPageLogging = ({
   page,
   pageName,
   xrpcLimit = 200,
-}) => {
+}: {
+  summary: Summary;
+  page: Page;
+  pageName?: string;
+  xrpcLimit?: number;
+}): void => {
   const maybePage = pageName ? { page: pageName } : {};
 
   page.on("console", (msg) => {
@@ -388,8 +461,14 @@ export const attachPageLogging = ({
   });
 };
 
-export const createProgressEmitter = ({ enabled, write = console.error }) => {
-  return (status, name, detail = "") => {
+export const createProgressEmitter = ({
+  enabled,
+  write = console.error,
+}: {
+  enabled: boolean;
+  write?: (message: string) => void;
+}) => {
+  return (status: string, name: string, detail = ""): void => {
     if (!enabled) {
       return;
     }
@@ -405,7 +484,13 @@ export const finalizeSummary = ({
   isIgnoredConsole,
   isIgnoredRequestFailure,
   isIgnoredHttpFailure,
-}) => {
+}: {
+  summary: Summary;
+  strictErrors: boolean;
+  isIgnoredConsole: (entry: FlexibleRecord) => boolean;
+  isIgnoredRequestFailure: (entry: FlexibleRecord) => boolean;
+  isIgnoredHttpFailure: (entry: FlexibleRecord) => boolean;
+}): Summary => {
   summary.finishedAt = new Date().toISOString();
   summary.unexpected = {
     console: summary.console.filter((entry) => !isIgnoredConsole(entry)),
@@ -437,7 +522,11 @@ export const closeBrowserSafely = async ({
   browser,
   summary,
   timeoutMs = 15000,
-}) => {
+}: {
+  browser: Browser;
+  summary: Summary;
+  timeoutMs?: number;
+}): Promise<void> => {
   await Promise.race([
     browser.close(),
     new Promise((_, reject) => {

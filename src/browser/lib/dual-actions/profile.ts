@@ -4,10 +4,11 @@ import {
   loginToBlueskyApp,
   normalizeText,
   pollJsonUntil,
-} from "../runtime-utils.mjs";
-import { createPageAuthActions } from "../page-auth-actions.mjs";
-import { createPageFeedActions } from "../page-feed-actions.mjs";
-import { createPageProfileEditActions } from "../page-profile-edit-actions.mjs";
+} from "../runtime-utils.js";
+import type { FlexibleRecord } from "../../../types.js";
+import { createPageAuthActions } from "../page-auth-actions.js";
+import { createPageFeedActions } from "../page-feed-actions.js";
+import { createPageProfileEditActions } from "../page-profile-edit-actions.js";
 
 export const createDualProfileActions = ({
   appBaseUrl,
@@ -302,24 +303,29 @@ export const createDualProfileActions = ({
       name: `public profile edit indexing for ${account.handle}`,
       buildUrl: () =>
         `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(account.handle)}`,
-      predicate: ({ ok, json }) =>
-        ok &&
-        json?.description === account.profileNote &&
-        typeof json?.avatar === "string" &&
-        json.avatar.length > 0,
+      predicate: ({ ok, json }) => {
+        const publicProfile = json as FlexibleRecord;
+        return (
+          ok &&
+          publicProfile?.description === account.profileNote &&
+          typeof publicProfile?.avatar === "string" &&
+          publicProfile.avatar.length > 0
+        );
+      },
       timeoutMs: publicCheckTimeoutMs,
       fetchJson,
     });
-    const avatarResult = await fetchStatus(result.json.avatar);
+    const publicProfile = result.json as FlexibleRecord;
+    const avatarResult = await fetchStatus(String(publicProfile.avatar));
     if (!avatarResult.ok) {
       throw new Error(
         `public avatar URL returned ${avatarResult.status} for ${account.handle}`,
       );
     }
     return {
-      avatar: result.json.avatar,
+      avatar: publicProfile.avatar,
       avatarStatus: avatarResult.status,
-      description: result.json.description,
+      description: publicProfile.description,
     };
   };
 

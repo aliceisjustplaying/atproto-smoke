@@ -2,16 +2,34 @@ import {
   fetchJsonWithTimeout,
   fetchStatusWithTimeout,
   sleep,
-} from "./runtime-utils.mjs";
-import { derivePdsHost } from "../../config.mjs";
+} from "./runtime-utils.js";
+import { derivePdsHost } from "../../config.js";
+import type {
+  AccountConfig,
+  FetchJsonResult,
+  FetchStatusResult,
+  FlexibleRecord,
+  RepoRecord,
+  XrpcJsonOptions,
+} from "../../types.js";
 
-export const createDualApiHelpers = ({ config }) => {
-  const fetchJson = (url, options = {}) => fetchJsonWithTimeout(url, options);
+export const createDualApiHelpers = ({
+  config,
+}: {
+  config: { pdsUrl: string };
+}) => {
+  const fetchJson = (
+    url: string,
+    options: FlexibleRecord = {},
+  ): Promise<FetchJsonResult> => fetchJsonWithTimeout(url, options);
 
-  const fetchStatus = (url, options = {}) =>
+  const fetchStatus = (
+    url: string,
+    options: FlexibleRecord = {},
+  ): Promise<FetchStatusResult> =>
     fetchStatusWithTimeout(url, options);
 
-  const collectionFromUri = (uri) => {
+  const collectionFromUri = (uri: string | undefined): string | undefined => {
     // Example: at://did:plc:123/app.bsky.feed.post/3kabc -> app.bsky.feed.post
     if (typeof uri !== "string") {
       return undefined;
@@ -20,7 +38,7 @@ export const createDualApiHelpers = ({ config }) => {
     return parts.length >= 4 ? parts[3] : undefined;
   };
 
-  const normalizeRepoRecord = (record) => {
+  const normalizeRepoRecord = (record: RepoRecord): RepoRecord => {
     const innerValue = record?.value?.value;
     const innerType = innerValue?.$type;
     const expectedCollection = collectionFromUri(record?.uri);
@@ -43,24 +61,33 @@ export const createDualApiHelpers = ({ config }) => {
   };
 
   const xrpcJson = async (
-    nsid,
-    { method = "GET", token, params, body, timeoutMs, pdsUrl } = {},
-  ) => {
+    nsid: string,
+    options: XrpcJsonOptions = {},
+  ): Promise<FetchJsonResult> => {
+    const {
+      method = "GET",
+      token,
+      params,
+      body,
+      timeoutMs,
+      pdsUrl,
+    } = options;
+    const typedParams = params as Record<string, string> | undefined;
     const basePdsUrl = pdsUrl || config.pdsUrl;
     const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
-    if (params) {
-      for (const [key, value] of Object.entries(params)) {
+    if (typedParams) {
+      for (const [key, value] of Object.entries(typedParams)) {
         url.searchParams.set(key, value);
       }
     }
-    const headers = { accept: "application/json" };
+    const headers: Record<string, string> = { accept: "application/json" };
     if (token) {
       headers.authorization = `Bearer ${token}`;
     }
     if (body !== undefined) {
       headers["content-type"] = "application/json";
     }
-    const run = (extraHeaders = {}) =>
+    const run = (extraHeaders: Record<string, string> = {}) =>
       fetchJson(url.toString(), {
         method,
         headers: {
@@ -81,12 +108,17 @@ export const createDualApiHelpers = ({ config }) => {
     return result;
   };
 
-  const listOwnRecords = async (account, collection, limit = 100) => {
+  const listOwnRecords = async (
+    account: AccountConfig,
+    collection: string,
+    limit = 100,
+  ): Promise<RepoRecord[]> => {
+    const repo = account.did ?? account.handle;
     const result = await xrpcJson("com.atproto.repo.listRecords", {
       token: account.accessJwt,
       pdsUrl: account.pdsUrl,
       params: {
-        repo: account.did,
+        repo,
         collection,
         limit: String(limit),
       },
@@ -96,16 +128,21 @@ export const createDualApiHelpers = ({ config }) => {
         `listRecords failed for ${account.handle} collection ${collection}: ${result.status} ${result.text}`,
       );
     }
-    return (result.json?.records || []).map(normalizeRepoRecord);
+    const records = ((result.json as FlexibleRecord)?.records || []) as RepoRecord[];
+    return records.map(normalizeRepoRecord);
   };
 
-  const recordRkey = (recordOrUri) => {
+  const recordRkey = (recordOrUri: RepoRecord | string): string | undefined => {
     const uri =
       typeof recordOrUri === "string" ? recordOrUri : recordOrUri?.uri;
     return uri?.split("/").pop();
   };
 
-  const deleteOwnRecord = async (account, collection, record) => {
+  const deleteOwnRecord = async (
+    account: AccountConfig,
+    collection: string,
+    record: RepoRecord | string,
+  ): Promise<{ rkey: string }> => {
     const rkey = recordRkey(record);
     if (!rkey) {
       throw new Error(
@@ -131,11 +168,11 @@ export const createDualApiHelpers = ({ config }) => {
   };
 
   const purgeOwnRecords = async (
-    account,
-    collection,
-    predicate,
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
     limit = 100,
-  ) => {
+  ): Promise<number> => {
     const records = await listOwnRecords(account, collection, limit);
     const doomed = records.filter(predicate);
     for (const record of doomed) {
@@ -146,11 +183,11 @@ export const createDualApiHelpers = ({ config }) => {
   };
 
   const waitForOwnRecord = async (
-    account,
-    collection,
-    predicate,
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
     timeoutMs = 60000,
-  ) => {
+  ): Promise<RepoRecord> => {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const records = await listOwnRecords(account, collection);
@@ -165,7 +202,11 @@ export const createDualApiHelpers = ({ config }) => {
     );
   };
 
-  const waitForOwnPostRecord = (account, text, timeoutMs = 60000) => {
+  const waitForOwnPostRecord = (
+    account: AccountConfig,
+    text: string,
+    timeoutMs = 60000,
+  ): Promise<RepoRecord> => {
     return waitForOwnRecord(
       account,
       "app.bsky.feed.post",
@@ -174,7 +215,11 @@ export const createDualApiHelpers = ({ config }) => {
     );
   };
 
-  const waitForFollowRecord = (account, subjectDid, timeoutMs = 60000) =>
+  const waitForFollowRecord = (
+    account: AccountConfig,
+    subjectDid: string,
+    timeoutMs = 60000,
+  ): Promise<RepoRecord> =>
     waitForOwnRecord(
       account,
       "app.bsky.graph.follow",
@@ -183,11 +228,11 @@ export const createDualApiHelpers = ({ config }) => {
     );
 
   const waitForNoOwnRecord = async (
-    account,
-    collection,
-    predicate,
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
     timeoutMs = 60000,
-  ) => {
+  ): Promise<true> => {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const records = await listOwnRecords(account, collection);
@@ -201,7 +246,11 @@ export const createDualApiHelpers = ({ config }) => {
     );
   };
 
-  const waitForOwnListRecord = (account, name, timeoutMs = 60000) =>
+  const waitForOwnListRecord = (
+    account: AccountConfig,
+    name: string,
+    timeoutMs = 60000,
+  ): Promise<RepoRecord> =>
     waitForOwnRecord(
       account,
       "app.bsky.graph.list",
@@ -210,11 +259,11 @@ export const createDualApiHelpers = ({ config }) => {
     );
 
   const waitForOwnListItemRecord = (
-    account,
-    listUri,
-    subjectDid,
+    account: AccountConfig,
+    listUri: string,
+    subjectDid: string,
     timeoutMs = 60000,
-  ) =>
+  ): Promise<RepoRecord> =>
     waitForOwnRecord(
       account,
       "app.bsky.graph.listitem",
@@ -224,7 +273,9 @@ export const createDualApiHelpers = ({ config }) => {
       timeoutMs,
     );
 
-  const createSession = async (account) => {
+  const createSession = async (
+    account: AccountConfig,
+  ): Promise<FlexibleRecord> => {
     const identifier = account.loginIdentifier || account.handle;
     const result = await xrpcJson("com.atproto.server.createSession", {
       method: "POST",
@@ -239,7 +290,7 @@ export const createDualApiHelpers = ({ config }) => {
         `createSession failed for ${identifier}: ${result.status} ${result.text}`,
       );
     }
-    return result.json;
+    return (result.json ?? {}) as FlexibleRecord;
   };
 
   const pollNotifications = async ({
@@ -248,7 +299,13 @@ export const createDualApiHelpers = ({ config }) => {
     reasons,
     minIndexedAt,
     timeoutMs = 180000,
-  }) => {
+  }: {
+    account: AccountConfig;
+    authorHandle: string;
+    reasons: string[];
+    minIndexedAt: number;
+    timeoutMs?: number;
+  }): Promise<{ notifications: FlexibleRecord[]; allNotifications: FlexibleRecord[] }> => {
     const started = Date.now();
     let last;
     while (Date.now() - started < timeoutMs) {
@@ -286,16 +343,24 @@ export const createDualApiHelpers = ({ config }) => {
     );
   };
 
-  const accountFromConfig = (entry) => ({
+  const accountFromConfig = (entry: AccountConfig): AccountConfig => ({
     ...entry,
-    pdsUrl: entry.pdsUrl || config.pdsUrl,
-    pdsHost: entry.pdsHost || derivePdsHost(entry.pdsUrl || config.pdsUrl),
-    loginIdentifier: entry.loginIdentifier || entry.handle,
-    mediaPostText: entry.mediaPostText || `${entry.postText} image`,
+    pdsUrl: entry.pdsUrl ?? config.pdsUrl,
+    pdsHost: entry.pdsHost ?? derivePdsHost(entry.pdsUrl ?? config.pdsUrl),
+    loginIdentifier: entry.loginIdentifier ?? entry.handle,
+    mediaPostText: entry.mediaPostText ?? `${entry.postText} image`,
     shortHandle: entry.handle.replace(/^@/, ""),
   });
 
-  const prepareAccounts = ({ primaryConfig, secondaryConfig, startedAt }) => {
+  const prepareAccounts = ({
+    primaryConfig,
+    secondaryConfig,
+    startedAt,
+  }: {
+    primaryConfig: AccountConfig;
+    secondaryConfig: AccountConfig;
+    startedAt: string;
+  }): { primary: AccountConfig; secondary: AccountConfig } => {
     const runToken = startedAt.replace(/\D/g, "").slice(0, 14);
     const primary = accountFromConfig({
       ...primaryConfig,
@@ -312,21 +377,23 @@ export const createDualApiHelpers = ({ config }) => {
     return { primary, secondary };
   };
 
-  const stalePostPrefixesFor = (account) => {
+  const stalePostPrefixesFor = (account: AccountConfig): string[] => {
     if (
       Array.isArray(account.cleanupPostPrefixes) &&
       account.cleanupPostPrefixes.length
     ) {
       return account.cleanupPostPrefixes;
     }
-    return [account.postText].filter(
-      (value) => typeof value === "string" && value.length > 0,
+    return [account.postText].filter((value): value is string =>
+      typeof value === "string" && value.length > 0,
     );
   };
 
   const staleListPrefixes = ["Smoke List ", "Updated Smoke List "];
 
-  const cleanupStaleSmokeArtifacts = async (account) => {
+  const cleanupStaleSmokeArtifacts = async (
+    account: AccountConfig,
+  ): Promise<{ deletedPosts: number; deletedListItems: number; deletedLists: number }> => {
     const postPrefixes = stalePostPrefixesFor(account);
     const deletedPosts = await purgeOwnRecords(
       account,

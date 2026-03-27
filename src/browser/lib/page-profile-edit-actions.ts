@@ -97,8 +97,10 @@ export const createPageProfileEditActions = ({
         const btn = document.querySelector(
           '[data-testid="editProfileSaveBtn"]',
         );
+        if (!(btn instanceof HTMLElement)) {
+          return false;
+        }
         return (
-          Boolean(btn) &&
           !btn.hasAttribute("disabled") &&
           btn.getAttribute("aria-disabled") !== "true"
         );

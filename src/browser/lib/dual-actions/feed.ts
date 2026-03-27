@@ -1,6 +1,6 @@
-import { createPageAuthActions } from "../page-auth-actions.mjs";
-import { createPageFeedActions } from "../page-feed-actions.mjs";
-import { dismissBlockingOverlays } from "../runtime-utils.mjs";
+import { createPageAuthActions } from "../page-auth-actions.js";
+import { createPageFeedActions } from "../page-feed-actions.js";
+import { dismissBlockingOverlays } from "../runtime-utils.js";
 
 export const createDualFeedActions = ({
   config,

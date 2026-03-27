@@ -1,5 +1,5 @@
-import { loginToBlueskyApp } from "../runtime-utils.mjs";
-import { createPageAuthActions } from "../page-auth-actions.mjs";
+import { loginToBlueskyApp } from "../runtime-utils.js";
+import { createPageAuthActions } from "../page-auth-actions.js";
 
 export const createSingleAuthActions = ({
   config,

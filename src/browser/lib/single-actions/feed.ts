@@ -1,5 +1,5 @@
-import { dismissBlockingOverlays } from "../runtime-utils.mjs";
-import { createPageFeedActions } from "../page-feed-actions.mjs";
+import { dismissBlockingOverlays } from "../runtime-utils.js";
+import { createPageFeedActions } from "../page-feed-actions.js";
 
 export const createSingleFeedActions = ({
   page,

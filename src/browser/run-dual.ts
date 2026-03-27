@@ -5,23 +5,26 @@ import {
   setupDualBrowser,
   createDualStepHelpers,
   finalizeDualSummary,
-} from "./lib/dual-browser.mjs";
-import { createDualApiHelpers } from "./lib/dual-api.mjs";
-import { createListHelpers } from "./lib/lists.mjs";
-import { createSettingsHelpers } from "./lib/settings.mjs";
-import { runDualScenario } from "./lib/dual-scenario.mjs";
-import { createDualActions } from "./lib/dual-actions.mjs";
+} from "./lib/dual-browser.js";
+import { createDualApiHelpers } from "./lib/dual-api.js";
+import { createListHelpers } from "./lib/lists.js";
+import { createSettingsHelpers } from "./lib/settings.js";
+import { runDualScenario } from "./lib/dual-scenario.js";
+import { createDualActions } from "./lib/dual-actions.js";
 import {
   AVATAR_PNG_BASE64,
   createBaseSummary,
+  errorMessage,
   sleep,
-} from "./lib/runtime-utils.mjs";
+} from "./lib/runtime-utils.js";
+import type { DualRunConfig, FlexibleRecord, Summary } from "../types.js";
+import { createDualRunConfig } from "../config.js";
 
-export const runDualFromConfig = async (config) => {
+export const runDualFromConfig = async (config: DualRunConfig): Promise<Summary> => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
   const appBaseUrl = config.appUrl.replace(/\/$/, "");
 
-  const summary = createBaseSummary({
+  const summary: Summary = createBaseSummary({
     appUrl: config.appUrl,
     pdsUrl: config.pdsUrl,
     primaryPdsUrl: config.primary?.pdsUrl || config.pdsUrl,
@@ -127,7 +130,7 @@ export const runDualFromConfig = async (config) => {
       ...actions,
     });
   } catch (error) {
-    summary.fatal = String(error?.message ?? error);
+    summary.fatal = errorMessage(error);
   }
 
   await finalizeDualSummary({
@@ -148,15 +151,19 @@ export const runDualFromConfig = async (config) => {
   return summary;
 };
 
-export const runDualFromConfigPath = async (configPath) => {
-  const config = JSON.parse(await fs.readFile(configPath, "utf8"));
+export const runDualFromConfigPath = async (
+  configPath: string,
+): Promise<Summary> => {
+  const config = createDualRunConfig(
+    JSON.parse(await fs.readFile(configPath, "utf8")) as FlexibleRecord,
+  );
   return runDualFromConfig(config);
 };
 
-export const runDualFromArgv = async (argv = process.argv) => {
+export const runDualFromArgv = async (argv = process.argv): Promise<number> => {
   const configPath = argv[2];
   if (!configPath) {
-    console.error("usage: node run-dual.mjs <config.json>");
+    console.error("usage: node dist/src/browser/run-dual.js <config.json>");
     return 2;
   }
   const summary = await runDualFromConfigPath(configPath);
@@ -169,5 +176,5 @@ const isDirectExecution =
 
 if (isDirectExecution) {
   const exitCode = await runDualFromArgv(process.argv);
-  process.exitCode = exitCode;
+  process.exit(exitCode);
 }

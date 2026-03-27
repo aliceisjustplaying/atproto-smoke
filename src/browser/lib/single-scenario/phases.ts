@@ -9,6 +9,7 @@ export const runSingleBootstrapPhase = async (ctx) => {
     verifyPublicProfile,
     verifyPublicAuthorFeed,
     gotoProfile,
+    waitForProfileHandle,
     page,
     findRowByPrimaryText,
     ensureLiked,
@@ -30,14 +31,33 @@ export const runSingleBootstrapPhase = async (ctx) => {
   await step("own-profile", () => gotoProfile(config.handle));
 
   const ownPost = await step("find-own-post", async () => {
-    await gotoProfile(config.handle);
-    await page
-      .getByTestId("postsFeed")
-      .first()
-      .waitFor({ state: "visible", timeout: 60000 });
-    const row = await findRowByPrimaryText(config.postText, 60000);
-    const rowTestId = await row.getAttribute("data-testid");
-    return { note: "found own post", rowFound: true, rowTestId };
+    const started = Date.now();
+    let lastError;
+    while (Date.now() - started < 60000) {
+      try {
+        await gotoProfile(config.handle);
+        await waitForProfileHandle(config.handle, 15000);
+        await page
+          .getByTestId("postsFeed")
+          .first()
+          .waitFor({ state: "visible", timeout: 15000 });
+        const row = await findRowByPrimaryText(config.postText, 15000);
+        const rowTestId = await row.getAttribute("data-testid");
+        return { note: "found own post", rowFound: true, rowTestId };
+      } catch (error) {
+        lastError = error;
+      }
+
+      await page
+        .reload({ waitUntil: "domcontentloaded", timeout: 60000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(3000);
+    }
+
+    throw (
+      lastError ??
+      new Error(`feed item with primary text not found: ${config.postText}`)
+    );
   });
 
   if (!ownPost) {

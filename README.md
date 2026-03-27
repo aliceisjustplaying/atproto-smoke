@@ -16,16 +16,16 @@ It grew out of [perlsky](https://github.com/aliceisjustplaying/perlsky) but is d
 ## Quick start
 
 ```sh
-npm install
-npx playwright install chromium
+bun install
+bunx playwright install chromium
 
 # generate a config, fill in your PDS URL and credentials
-node bin/atproto-smoke.mjs write-example --mode dual --output config.json
+bunx tsx bin/atproto-smoke.ts write-example --mode dual --output config.json
 $EDITOR config.json
 
 # validate and run
-node bin/atproto-smoke.mjs validate --mode dual --config config.json
-node bin/atproto-smoke.mjs run-dual --config config.json
+bunx tsx bin/atproto-smoke.ts validate --mode dual --config config.json
+node dist/bin/atproto-smoke.js run-dual --config config.json
 ```
 
 That's it. Provide a `pdsUrl` and two account credentials, and the suite handles the rest. Run commands print per-step progress to `stderr` and write a JSON summary to `stdout` (`--json-only` for machine-readable output only).
@@ -50,7 +50,7 @@ DMs are intentionally deferred — the current suite is focused on stable social
 The suite ships with built-in adapters for different PDS implementations:
 
 ```sh
-node bin/atproto-smoke.mjs list-adapters
+node dist/bin/atproto-smoke.js list-adapters
 ```
 
 - **`bring-your-own`** — the default. Works with any PDS that has accounts you can log into.
@@ -77,12 +77,12 @@ The config surface is intentionally small — suite-level settings (`pdsUrl`, `a
 Example configs live in [examples/](./examples). See [docs/SAMPLE_OUTPUT.md](./docs/SAMPLE_OUTPUT.md) for representative CLI output and `summary.json` shape.
 
 For the local `pdslab.net` smoke lab, the committed non-secret target inventory
-lives in [`src/lab/pdslab-targets.mjs`](./src/lab/pdslab-targets.mjs). If you
+lives in [`src/lab/pdslab-targets.ts`](./src/lab/pdslab-targets.ts). If you
 also have the local credential ledger in `.tmp/smoke-accounts.local.json`, you
 can generate runnable configs into `.tmp/generated/pdslab-configs/` with:
 
 ```sh
-npm run write:pdslab-configs
+bun run write:pdslab-configs
 ```
 
 That writes one config per runnable target plus an `inventory.json` summary,
