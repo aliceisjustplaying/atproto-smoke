@@ -20,23 +20,31 @@ import {
 import type { DualRunConfig, FlexibleRecord, Summary } from "../types.js";
 import { createDualRunConfig } from "../config.js";
 
-export const runDualFromConfig = async (config: DualRunConfig): Promise<Summary> => {
+export const runDualFromConfig = async (
+  config: DualRunConfig,
+): Promise<Summary> => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
   const appBaseUrl = config.appUrl.replace(/\/$/, "");
 
   const summary: Summary = createBaseSummary({
     appUrl: config.appUrl,
     pdsUrl: config.pdsUrl,
-    primaryPdsUrl: config.primary?.pdsUrl || config.pdsUrl,
-    secondaryPdsUrl: config.secondary?.pdsUrl || config.pdsUrl,
+    primaryPdsUrl:
+      typeof config.primary.pdsUrl === "string"
+        ? config.primary.pdsUrl
+        : config.pdsUrl,
+    secondaryPdsUrl:
+      typeof config.secondary.pdsUrl === "string"
+        ? config.secondary.pdsUrl
+        : config.pdsUrl,
     publicApiUrl: config.publicApiUrl,
     targetHandle: config.targetHandle,
     remoteReplyPostUrl: config.remoteReplyPostUrl,
-    primaryHandle: config.primary?.handle,
-    secondaryHandle: config.secondary?.handle,
+    primaryHandle: config.primary.handle,
+    secondaryHandle: config.secondary.handle,
   });
 
-  if (config.accountSource) {
+  if (config.accountSource !== undefined) {
     summary.notes.push(`account source: ${config.accountSource}`);
   }
 
@@ -147,7 +155,7 @@ export const runDualFromConfig = async (config: DualRunConfig): Promise<Summary>
     `${JSON.stringify(summary, null, 2)}\n`,
     "utf8",
   );
-  console.log(JSON.stringify(summary, null, 2));
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   return summary;
 };
 
@@ -157,17 +165,19 @@ export const runDualFromConfigPath = async (
   const config = createDualRunConfig(
     JSON.parse(await fs.readFile(configPath, "utf8")) as FlexibleRecord,
   );
-  return runDualFromConfig(config);
+  return await runDualFromConfig(config);
 };
 
 export const runDualFromArgv = async (argv = process.argv): Promise<number> => {
   const configPath = argv[2];
-  if (!configPath) {
-    console.error("usage: node dist/src/browser/run-dual.js <config.json>");
+  if (configPath === undefined) {
+    process.stderr.write(
+      "usage: node dist/src/browser/run-dual.js <config.json>\n",
+    );
     return 2;
   }
   const summary = await runDualFromConfigPath(configPath);
-  return summary.ok ? 0 : 1;
+  return summary.ok === true ? 0 : 1;
 };
 
 const isDirectExecution =

@@ -73,7 +73,10 @@ export const createDualStepHelpers = ({
 
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
-  const screenshot = async (pageName: string, name: string): Promise<string> => {
+  const screenshot = async (
+    pageName: string,
+    name: string,
+  ): Promise<string> => {
     const page = pageFor(pageName);
     const file = path.join(config.artifactsDir, `${name}-${pageName}.png`);
     await page.screenshot({ path: file, fullPage: true });

@@ -13,6 +13,13 @@ import type {
   XrpcJsonOptions,
 } from "../../types.js";
 
+const asRecord = (value: unknown): FlexibleRecord | undefined => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as FlexibleRecord;
+};
+
 export const createDualApiHelpers = ({
   config,
 }: {
@@ -26,8 +33,7 @@ export const createDualApiHelpers = ({
   const fetchStatus = (
     url: string,
     options: FlexibleRecord = {},
-  ): Promise<FetchStatusResult> =>
-    fetchStatusWithTimeout(url, options);
+  ): Promise<FetchStatusResult> => fetchStatusWithTimeout(url, options);
 
   const collectionFromUri = (uri: string | undefined): string | undefined => {
     // Example: at://did:plc:123/app.bsky.feed.post/3kabc -> app.bsky.feed.post
@@ -39,16 +45,15 @@ export const createDualApiHelpers = ({
   };
 
   const normalizeRepoRecord = (record: RepoRecord): RepoRecord => {
-    const innerValue = record?.value?.value;
-    const innerType = innerValue?.$type;
+    const recordValue = asRecord(record.value);
+    const innerValue = asRecord(recordValue?.value);
+    const innerType =
+      typeof innerValue?.$type === "string" ? innerValue.$type : undefined;
     const expectedCollection = collectionFromUri(record?.uri);
     if (
-      record &&
-      record.value &&
-      typeof record.value === "object" &&
-      typeof innerValue === "object" &&
-      innerValue &&
-      record.value.$type === undefined &&
+      recordValue !== undefined &&
+      innerValue !== undefined &&
+      recordValue.$type === undefined &&
       typeof innerType === "string" &&
       (!expectedCollection || innerType === expectedCollection)
     ) {
@@ -64,19 +69,11 @@ export const createDualApiHelpers = ({
     nsid: string,
     options: XrpcJsonOptions = {},
   ): Promise<FetchJsonResult> => {
-    const {
-      method = "GET",
-      token,
-      params,
-      body,
-      timeoutMs,
-      pdsUrl,
-    } = options;
-    const typedParams = params as Record<string, string> | undefined;
+    const { method = "GET", token, params, body, timeoutMs, pdsUrl } = options;
     const basePdsUrl = pdsUrl || config.pdsUrl;
     const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
-    if (typedParams) {
-      for (const [key, value] of Object.entries(typedParams)) {
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
         url.searchParams.set(key, value);
       }
     }
@@ -101,7 +98,7 @@ export const createDualApiHelpers = ({
     const shouldRetryWithAppViewProxy =
       !result.ok && nsid.startsWith("app.bsky.");
     if (shouldRetryWithAppViewProxy) {
-      return run({
+      return await run({
         "atproto-proxy": "did:web:api.bsky.app#bsky_appview",
       });
     }
@@ -128,7 +125,9 @@ export const createDualApiHelpers = ({
         `listRecords failed for ${account.handle} collection ${collection}: ${result.status} ${result.text}`,
       );
     }
-    const records = ((result.json as FlexibleRecord)?.records || []) as RepoRecord[];
+    const records = Array.isArray(asRecord(result.json)?.records)
+      ? (asRecord(result.json)?.records as RepoRecord[])
+      : [];
     return records.map(normalizeRepoRecord);
   };
 
@@ -305,7 +304,10 @@ export const createDualApiHelpers = ({
     reasons: string[];
     minIndexedAt: number;
     timeoutMs?: number;
-  }): Promise<{ notifications: FlexibleRecord[]; allNotifications: FlexibleRecord[] }> => {
+  }): Promise<{
+    notifications: FlexibleRecord[];
+    allNotifications: FlexibleRecord[];
+  }> => {
     const started = Date.now();
     let last;
     while (Date.now() - started < timeoutMs) {
@@ -384,8 +386,8 @@ export const createDualApiHelpers = ({
     ) {
       return account.cleanupPostPrefixes;
     }
-    return [account.postText].filter((value): value is string =>
-      typeof value === "string" && value.length > 0,
+    return [account.postText].filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
     );
   };
 
@@ -393,27 +395,36 @@ export const createDualApiHelpers = ({
 
   const cleanupStaleSmokeArtifacts = async (
     account: AccountConfig,
-  ): Promise<{ deletedPosts: number; deletedListItems: number; deletedLists: number }> => {
+  ): Promise<{
+    deletedPosts: number;
+    deletedListItems: number;
+    deletedLists: number;
+  }> => {
     const postPrefixes = stalePostPrefixesFor(account);
     const deletedPosts = await purgeOwnRecords(
       account,
       "app.bsky.feed.post",
-      (record) =>
-        postPrefixes.some((prefix) =>
-          (record?.value?.text || "").startsWith(prefix),
-        ),
+      (record) => {
+        const text =
+          typeof record.value?.text === "string" ? record.value.text : "";
+        return postPrefixes.some((prefix) => text.startsWith(prefix));
+      },
     );
     const lists = await listOwnRecords(account, "app.bsky.graph.list", 100);
-    const doomedLists = lists.filter((record) =>
-      staleListPrefixes.some((prefix) =>
-        (record?.value?.name || "").startsWith(prefix),
-      ),
-    );
+    const doomedLists = lists.filter((record) => {
+      const name =
+        typeof record.value?.name === "string" ? record.value.name : "";
+      return staleListPrefixes.some((prefix) => name.startsWith(prefix));
+    });
     const doomedListUris = new Set(doomedLists.map((record) => record.uri));
     const deletedListItems = doomedListUris.size
-      ? await purgeOwnRecords(account, "app.bsky.graph.listitem", (record) =>
-          doomedListUris.has(record?.value?.list),
-        )
+      ? await purgeOwnRecords(account, "app.bsky.graph.listitem", (record) => {
+          const listUri =
+            typeof record.value?.list === "string"
+              ? record.value.list
+              : undefined;
+          return doomedListUris.has(listUri);
+        })
       : 0;
     let deletedLists = 0;
     for (const record of doomedLists) {

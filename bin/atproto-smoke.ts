@@ -6,6 +6,6 @@ try {
   const exitCode = await runCliFromArgv(process.argv);
   process.exit(exitCode);
 } catch (error) {
-  console.error(errorMessage(error));
+  process.stderr.write(`${errorMessage(error)}\n`);
   process.exit(1);
 }

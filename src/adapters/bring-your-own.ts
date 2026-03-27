@@ -44,10 +44,10 @@ const createBringYourOwnExampleConfig = ({
 const createBringYourOwnSingleConfig = ({
   account,
   ...rest
-}: FlexibleRecord = {}) => {
+}: FlexibleRecord = {}): ReturnType<Adapter["createSingleConfig"]> => {
   return createSingleRunConfig({
     ...rest,
-    account: createAccountConfig(account),
+    account: createAccountConfig((account as FlexibleRecord | undefined) ?? {}),
   });
 };
 
@@ -55,11 +55,13 @@ const createBringYourOwnDualConfig = ({
   primary,
   secondary,
   ...rest
-}: FlexibleRecord = {}) => {
+}: FlexibleRecord = {}): ReturnType<Adapter["createDualConfig"]> => {
   return createDualRunConfig({
     ...rest,
-    primary: createAccountConfig(primary),
-    secondary: createAccountConfig(secondary),
+    primary: createAccountConfig((primary as FlexibleRecord | undefined) ?? {}),
+    secondary: createAccountConfig(
+      (secondary as FlexibleRecord | undefined) ?? {},
+    ),
   });
 };
 

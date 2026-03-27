@@ -1,4 +1,6 @@
-const createTarget = (target) => Object.freeze(target);
+const createTarget = <T extends Record<string, unknown>>(
+  target: T,
+): Readonly<T> => Object.freeze(target);
 
 export const PDSLAB_TARGETS = Object.freeze([
   createTarget({

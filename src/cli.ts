@@ -88,20 +88,17 @@ const normalizeConfig = ({
   mode: "single" | "dual";
   adapter: string;
   raw: FlexibleRecord;
-}) => {
+}): SingleRunConfig | DualRunConfig => {
   const selectedAdapter = getAdapter(adapter);
   if (mode === "single") {
     return selectedAdapter.createSingleConfig(raw);
   }
-  if (mode === "dual") {
-    return selectedAdapter.createDualConfig(raw);
-  }
-  throw new Error(`unsupported mode: ${mode}`);
+  return selectedAdapter.createDualConfig(raw);
 };
 
 const loadJsonConfig = async (configPath: string): Promise<FlexibleRecord> => {
   const text = await fs.readFile(configPath, "utf8");
-  return JSON.parse(text);
+  return JSON.parse(text) as FlexibleRecord;
 };
 
 const writeJsonConfig = async (
@@ -122,7 +119,7 @@ const adapterHelp = (): string => {
         `- ${adapter.name}: ${adapter.description}`,
         `  account strategy: ${adapter.accountStrategy}`,
       ];
-      for (const note of adapter.notes || []) {
+      for (const note of adapter.notes) {
         lines.push(`  note: ${note}`);
       }
       return lines.join("\n");
@@ -134,18 +131,18 @@ export const runCliFromArgv = async (argv = process.argv): Promise<number> => {
   const args = parseArgs(argv);
 
   if (
-    args.help ||
-    !args.command ||
+    args.help === true ||
+    args.command === undefined ||
     args.command === "help" ||
     args.command === "--help" ||
     args.command === "-h"
   ) {
-    console.log(`${usage}\nBuilt-in adapters:\n${adapterHelp()}`);
+    process.stdout.write(`${usage}\nBuilt-in adapters:\n${adapterHelp()}\n`);
     return 0;
   }
 
   if (args.command === "list-adapters") {
-    console.log(adapterHelp());
+    process.stdout.write(`${adapterHelp()}\n`);
     return 0;
   }
 
@@ -153,52 +150,52 @@ export const runCliFromArgv = async (argv = process.argv): Promise<number> => {
   const adapter = getAdapter(args.adapter);
 
   if (args.command === "print-example" || args.command === "write-example") {
-    if (!mode) {
+    if (mode === undefined) {
       throw new Error(`${args.command} requires --mode single|dual`);
     }
     const example = adapter.createExampleConfig({ mode });
     if (args.command === "write-example") {
-      if (!args.outputPath) {
+      if (args.outputPath === undefined) {
         throw new Error("write-example requires --output PATH");
       }
       await writeJsonConfig(args.outputPath, example);
-      console.log(
-        `wrote ${args.outputPath} using adapter ${adapter.name} (${mode})`,
+      process.stdout.write(
+        `wrote ${args.outputPath} using adapter ${adapter.name} (${mode})\n`,
       );
       return 0;
     }
-    console.log(JSON.stringify(example, null, 2));
+    process.stdout.write(`${JSON.stringify(example, null, 2)}\n`);
     return 0;
   }
 
-  if (!mode) {
+  if (mode === undefined) {
     throw new Error("validate requires --mode single|dual");
   }
-  if (!args.configPath) {
+  if (args.configPath === undefined) {
     throw new Error("--config is required");
   }
 
   const raw = await loadJsonConfig(args.configPath);
   const config = normalizeConfig({ mode, adapter: adapter.name, raw });
   if (args.command === "run-single" || args.command === "run-dual") {
-    config.progress = !args.jsonOnly;
+    config.progress = args.jsonOnly !== true;
   }
 
   if (args.command === "validate") {
-    console.log(JSON.stringify(config, null, 2));
+    process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
     return 0;
   }
 
   if (args.command === "run-single") {
     const { runSingleFromConfig } = await import("./browser/run-single.js");
     const summary = await runSingleFromConfig(config as SingleRunConfig);
-    return summary.ok ? 0 : 1;
+    return summary.ok === true ? 0 : 1;
   }
 
   if (args.command === "run-dual") {
     const { runDualFromConfig } = await import("./browser/run-dual.js");
     const summary = await runDualFromConfig(config as DualRunConfig);
-    return summary.ok ? 0 : 1;
+    return summary.ok === true ? 0 : 1;
   }
 
   throw new Error(`unsupported command: ${args.command}`);

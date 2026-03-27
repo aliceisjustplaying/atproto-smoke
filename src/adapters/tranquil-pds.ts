@@ -1,4 +1,5 @@
 import { createRoleBasedAdapter } from "./adapter-builder.js";
+import type { FlexibleRecord } from "../types.js";
 
 export const TRANQUIL_PDS_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
   "tranquil browser smoke ",
@@ -8,7 +9,7 @@ export const TRANQUIL_PDS_SECONDARY_CLEANUP_PREFIXES = Object.freeze([
   "tranquil browser secondary ",
 ]);
 
-const tranquilRoleDefaults = (role) => {
+const tranquilRoleDefaults = (role: string): FlexibleRecord => {
   if (role === "secondary") {
     return {
       postText: "tranquil browser secondary post",

@@ -37,10 +37,10 @@ const optionalString = (value: unknown): string | undefined => {
 
 const optionalPostUrl = (value: unknown, label: string): string | undefined => {
   const maybe = optionalString(value);
-  if (!maybe) {
+  if (maybe === undefined) {
     return undefined;
   }
-  let url;
+  let url: URL;
   try {
     url = new URL(maybe);
   } catch {
@@ -103,7 +103,7 @@ export const createAccountConfig = ({
   };
 
   const login = optionalString(loginIdentifier);
-  if (login) {
+  if (login !== undefined) {
     normalized.loginIdentifier = login;
   }
 
@@ -113,19 +113,19 @@ export const createAccountConfig = ({
   const reply = optionalString(replyText);
   const note = optionalString(profileNote);
 
-  if (post) {
+  if (post !== undefined) {
     normalized.postText = post;
   }
-  if (mediaPost) {
+  if (mediaPost !== undefined) {
     normalized.mediaPostText = mediaPost;
   }
-  if (quote) {
+  if (quote !== undefined) {
     normalized.quoteText = quote;
   }
-  if (reply) {
+  if (reply !== undefined) {
     normalized.replyText = reply;
   }
-  if (note) {
+  if (note !== undefined) {
     normalized.profileNote = note;
   }
 
@@ -166,13 +166,13 @@ export const createSuiteConfig = ({
 
   const derivedPdsHost =
     optionalString(pdsHost) ?? derivePdsHost(normalized.pdsUrl);
-  if (!derivedPdsHost) {
+  if (derivedPdsHost === undefined) {
     throw new Error("pdsHost could not be derived from pdsUrl");
   }
   normalized.pdsHost = derivedPdsHost;
 
   const maybeTarget = optionalString(targetHandle);
-  if (maybeTarget) {
+  if (maybeTarget !== undefined) {
     normalized.targetHandle = maybeTarget;
   }
 
@@ -180,17 +180,17 @@ export const createSuiteConfig = ({
     remoteReplyPostUrl,
     "remoteReplyPostUrl",
   );
-  if (maybeRemoteReplyPostUrl) {
+  if (maybeRemoteReplyPostUrl !== undefined) {
     normalized.remoteReplyPostUrl = maybeRemoteReplyPostUrl;
   }
 
   const maybeBrowserExecutablePath = optionalString(browserExecutablePath);
-  if (maybeBrowserExecutablePath) {
+  if (maybeBrowserExecutablePath !== undefined) {
     normalized.browserExecutablePath = maybeBrowserExecutablePath;
   }
 
   const maybeAdapter = optionalString(adapter);
-  if (maybeAdapter) {
+  if (maybeAdapter !== undefined) {
     normalized.adapter = maybeAdapter;
   }
 
@@ -203,12 +203,12 @@ export const createSingleRunConfig = ({
   ...rest
 }: FlexibleRecord = {}): SingleRunConfig => {
   const suite = createSuiteConfig(rest);
-  if (!suite.targetHandle) {
+  if (suite.targetHandle === undefined) {
     throw new Error("targetHandle is required for single-mode runs");
   }
   return {
     ...suite,
-    ...createAccountConfig(account),
+    ...createAccountConfig((account as FlexibleRecord | undefined) ?? {}),
     editProfile: Boolean(editProfile),
   } as SingleRunConfig;
 };
@@ -221,12 +221,14 @@ export const createDualRunConfig = ({
 }: FlexibleRecord = {}): DualRunConfig => {
   const normalized: DualRunConfig = {
     ...createSuiteConfig(rest),
-    primary: createAccountConfig(primary),
-    secondary: createAccountConfig(secondary),
+    primary: createAccountConfig((primary as FlexibleRecord | undefined) ?? {}),
+    secondary: createAccountConfig(
+      (secondary as FlexibleRecord | undefined) ?? {},
+    ),
   };
 
   const maybeAccountSource = optionalString(accountSource);
-  if (maybeAccountSource) {
+  if (maybeAccountSource !== undefined) {
     normalized.accountSource = maybeAccountSource;
   }
 

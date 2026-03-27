@@ -114,11 +114,7 @@ export const createStepRunner = ({
         ...artifacts,
         error: errorMessage(error),
       });
-      emitProgress(
-        optional ? "skip" : "fail",
-        name,
-        errorMessage(error),
-      );
+      emitProgress(optional ? "skip" : "fail", name, errorMessage(error));
       if (!optional) {
         throw error;
       }
@@ -354,7 +350,10 @@ export const pollJsonUntil = async ({
   buildUrl: () => string;
   predicate: (result: FetchJsonResult) => boolean;
   timeoutMs: number;
-  fetchJson: (url: string, options?: FlexibleRecord) => Promise<FetchJsonResult>;
+  fetchJson: (
+    url: string,
+    options?: FlexibleRecord,
+  ) => Promise<FetchJsonResult>;
   intervalMs?: number;
 }): Promise<FetchJsonResult> => {
   const started = Date.now();
@@ -463,7 +462,9 @@ export const attachPageLogging = ({
 
 export const createProgressEmitter = ({
   enabled,
-  write = console.error,
+  write = (message: string): void => {
+    process.stderr.write(`${message}\n`);
+  },
 }: {
   enabled: boolean;
   write?: (message: string) => void;

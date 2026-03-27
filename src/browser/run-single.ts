@@ -95,7 +95,7 @@ export const runSingleFromConfig = async (
     fetchJsonWithTimeout(url, {
       headers: { accept: "application/json" },
       timeoutMs:
-        typeof options.timeoutMs === "number" ? options.timeoutMs : 30000,
+        typeof options["timeoutMs"] === "number" ? options["timeoutMs"] : 30000,
     });
 
   const fetchStatus = (
@@ -104,7 +104,7 @@ export const runSingleFromConfig = async (
   ): Promise<FetchStatusResult> =>
     fetchStatusWithTimeout(url, {
       timeoutMs:
-        typeof options.timeoutMs === "number" ? options.timeoutMs : 30000,
+        typeof options["timeoutMs"] === "number" ? options["timeoutMs"] : 30000,
     });
 
   const pollJson = (
@@ -159,7 +159,7 @@ export const runSingleFromConfig = async (
     `${JSON.stringify(summary, null, 2)}\n`,
     "utf8",
   );
-  console.log(JSON.stringify(summary, null, 2));
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   await closeBrowserSafely({ browser, summary });
   return summary;
 };
@@ -170,17 +170,21 @@ export const runSingleFromConfigPath = async (
   const config = createSingleRunConfig(
     JSON.parse(await fs.readFile(configPath, "utf8")) as FlexibleRecord,
   );
-  return runSingleFromConfig(config);
+  return await runSingleFromConfig(config);
 };
 
-export const runSingleFromArgv = async (argv = process.argv): Promise<number> => {
+export const runSingleFromArgv = async (
+  argv = process.argv,
+): Promise<number> => {
   const configPath = argv[2];
-  if (!configPath) {
-    console.error("usage: node dist/src/browser/run-single.js <config.json>");
+  if (configPath === undefined) {
+    process.stderr.write(
+      "usage: node dist/src/browser/run-single.js <config.json>\n",
+    );
     return 2;
   }
   const summary = await runSingleFromConfigPath(configPath);
-  return summary.ok ? 0 : 1;
+  return summary.ok === true ? 0 : 1;
 };
 
 const isDirectExecution =

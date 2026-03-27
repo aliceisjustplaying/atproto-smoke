@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDSLAB_TARGETS } from "../src/lab/pdslab-targets.js";
-import type { AccountConfig, FlexibleRecord } from "../src/types.js";
+import type { FlexibleRecord } from "../src/types.js";
 import { errorMessage } from "../src/browser/lib/runtime-utils.js";
 
 interface PlanTarget {
@@ -27,6 +27,13 @@ interface Plan {
   runnableTargets: PlanTarget[];
   skippedTargets: SkippedTarget[];
 }
+
+const asRecord = (value: unknown): FlexibleRecord | undefined => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as FlexibleRecord;
+};
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -73,8 +80,9 @@ const ensureTarget = (
   ledger: FlexibleRecord,
   targetId: string,
 ): FlexibleRecord => {
-  const target = ledger.targets?.[targetId];
-  if (!target) {
+  const targets = asRecord(ledger.targets);
+  const target = asRecord(targets?.[targetId]);
+  if (target === undefined) {
     throw new Error(`ledger target missing: ${targetId}`);
   }
   return target;
@@ -121,7 +129,7 @@ const createAccount = ({
 
   if (loginIdentifierKey) {
     const loginIdentifier = account[loginIdentifierKey];
-    if (!loginIdentifier) {
+    if (typeof loginIdentifier !== "string" || loginIdentifier.length === 0) {
       throw new Error(
         `missing loginIdentifierKey "${loginIdentifierKey}" on account`,
       );
@@ -154,9 +162,10 @@ const createSingleConfig = ({
 }): FlexibleRecord => {
   const accountSource = spec.currentDeploymentKey
     ? ledgerTarget[String(spec.currentDeploymentKey)]
-    : ledgerTarget.accounts?.[String(spec.ledgerAccount)];
+    : asRecord(ledgerTarget.accounts)?.[String(spec.ledgerAccount)];
+  const normalizedAccountSource = asRecord(accountSource);
 
-  if (!accountSource) {
+  if (normalizedAccountSource === undefined) {
     throw new Error(
       `single target ${spec.id} is missing its account in the ledger`,
     );
@@ -173,8 +182,11 @@ const createSingleConfig = ({
     pdslabPairGroup: spec.pairGroup,
     pdslabNotes: spec.notes,
     account: createAccount({
-      account: accountSource,
-      loginIdentifierKey: spec.loginIdentifierKey,
+      account: normalizedAccountSource,
+      loginIdentifierKey:
+        typeof spec.loginIdentifierKey === "string"
+          ? spec.loginIdentifierKey
+          : undefined,
       spec,
       role:
         typeof spec.ledgerAccount === "string" ? spec.ledgerAccount : "single",
@@ -189,9 +201,10 @@ const createDualConfig = ({
   spec: FlexibleRecord;
   ledgerTarget: FlexibleRecord;
 }): FlexibleRecord => {
-  const primary = ledgerTarget.accounts?.["smoke-a"];
-  const secondary = ledgerTarget.accounts?.["smoke-b"];
-  if (!primary || !secondary) {
+  const accounts = asRecord(ledgerTarget.accounts);
+  const primary = asRecord(accounts?.["smoke-a"]);
+  const secondary = asRecord(accounts?.["smoke-b"]);
+  if (primary === undefined || secondary === undefined) {
     throw new Error(
       `dual target ${spec.id} is missing smoke-a or smoke-b in the ledger`,
     );
@@ -221,12 +234,16 @@ const createCrossPdsDualConfig = ({
 }): FlexibleRecord => {
   const primarySource = spec.primaryCurrentDeploymentKey
     ? primaryLedgerTarget[String(spec.primaryCurrentDeploymentKey)]
-    : primaryLedgerTarget.accounts?.[String(spec.primaryLedgerAccount)];
+    : asRecord(primaryLedgerTarget.accounts)?.[
+        String(spec.primaryLedgerAccount)
+      ];
   const secondarySource = spec.secondaryCurrentDeploymentKey
     ? secondaryLedgerTarget[String(spec.secondaryCurrentDeploymentKey)]
-    : secondaryLedgerTarget.accounts?.[String(spec.secondaryLedgerAccount)];
+    : asRecord(secondaryLedgerTarget.accounts)?.[
+        String(spec.secondaryLedgerAccount)
+      ];
 
-  if (!primarySource || !secondarySource) {
+  if (!asRecord(primarySource) || !asRecord(secondarySource)) {
     throw new Error(
       `cross-PDS target ${spec.id} is missing one of its accounts in the ledger`,
     );
@@ -242,19 +259,25 @@ const createCrossPdsDualConfig = ({
     pdslabNotes: spec.notes,
     primary: createAccount({
       account: {
-        ...primarySource,
+        ...asRecord(primarySource),
         pdsUrl: primaryLedgerTarget.pdsUrl,
       },
-      loginIdentifierKey: spec.primaryLoginIdentifierKey,
+      loginIdentifierKey:
+        typeof spec.primaryLoginIdentifierKey === "string"
+          ? spec.primaryLoginIdentifierKey
+          : undefined,
       spec,
       role: "primary",
     }),
     secondary: createAccount({
       account: {
-        ...secondarySource,
+        ...asRecord(secondarySource),
         pdsUrl: secondaryLedgerTarget.pdsUrl,
       },
-      loginIdentifierKey: spec.secondaryLoginIdentifierKey,
+      loginIdentifierKey:
+        typeof spec.secondaryLoginIdentifierKey === "string"
+          ? spec.secondaryLoginIdentifierKey
+          : undefined,
       spec,
       role: "secondary",
     }),
@@ -265,26 +288,31 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
   const targets: PlanTarget[] = [];
   const skipped: SkippedTarget[] = [];
 
-  for (const spec of PDSLAB_TARGETS) {
-    const needsLedgerTarget = Boolean(spec.ledgerTarget);
+  for (const spec of PDSLAB_TARGETS as readonly FlexibleRecord[]) {
+    const specId = String(spec.id);
+    const specMode = String(spec.mode);
+    const specRunnerStatus = String(spec.runnerStatus);
+    const needsLedgerTarget = typeof spec.ledgerTarget === "string";
     const ledgerTarget = needsLedgerTarget
       ? ensureTarget(ledger, String(spec.ledgerTarget))
       : null;
-    const primaryLedgerTarget = spec.primaryLedgerTarget
-      ? ensureTarget(ledger, String(spec.primaryLedgerTarget))
-      : null;
-    const secondaryLedgerTarget = spec.secondaryLedgerTarget
-      ? ensureTarget(ledger, String(spec.secondaryLedgerTarget))
-      : null;
+    const primaryLedgerTarget =
+      typeof spec.primaryLedgerTarget === "string"
+        ? ensureTarget(ledger, String(spec.primaryLedgerTarget))
+        : null;
+    const secondaryLedgerTarget =
+      typeof spec.secondaryLedgerTarget === "string"
+        ? ensureTarget(ledger, String(spec.secondaryLedgerTarget))
+        : null;
 
     if (
-      spec.runnerStatus !== "ready" &&
-      spec.runnerStatus !== "needs-login-identifier-support"
+      specRunnerStatus !== "ready" &&
+      specRunnerStatus !== "needs-login-identifier-support"
     ) {
       skipped.push({
-        id: spec.id,
-        mode: spec.mode,
-        runnerStatus: spec.runnerStatus,
+        id: specId,
+        mode: specMode,
+        runnerStatus: specRunnerStatus,
         notes: spec.notes,
       });
       continue;
@@ -298,7 +326,7 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
     ) {
       if (!primaryLedgerTarget || !secondaryLedgerTarget) {
         throw new Error(
-          `cross-PDS target ${String(spec.id)} is missing its ledger targets`,
+          `cross-PDS target ${specId} is missing its ledger targets`,
         );
       }
       config = createCrossPdsDualConfig({
@@ -308,24 +336,20 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
       });
     } else if (spec.mode === "dual") {
       if (!ledgerTarget) {
-        throw new Error(
-          `dual target ${String(spec.id)} is missing its ledger target`,
-        );
+        throw new Error(`dual target ${specId} is missing its ledger target`);
       }
       config = createDualConfig({ spec, ledgerTarget });
     } else {
       if (!ledgerTarget) {
-        throw new Error(
-          `single target ${String(spec.id)} is missing its ledger target`,
-        );
+        throw new Error(`single target ${specId} is missing its ledger target`);
       }
       config = createSingleConfig({ spec, ledgerTarget });
     }
 
     targets.push({
-      id: spec.id,
-      mode: spec.mode,
-      runnerStatus: spec.runnerStatus,
+      id: specId,
+      mode: specMode,
+      runnerStatus: specRunnerStatus,
       config,
     });
   }
@@ -356,13 +380,13 @@ const writePlan = async ({
         mode,
         runnerStatus,
         pdsUrl: config.pdsUrl,
-        primaryPdsUrl: config.primary?.pdsUrl,
-        secondaryPdsUrl: config.secondary?.pdsUrl,
+        primaryPdsUrl: asRecord(config.primary)?.pdsUrl,
+        secondaryPdsUrl: asRecord(config.secondary)?.pdsUrl,
         artifactsDir: config.artifactsDir,
         accountSource: config.accountSource,
         pairGroup: config.pdslabPairGroup,
         notes: config.pdslabNotes,
-        loginIdentifier: config.account?.loginIdentifier,
+        loginIdentifier: asRecord(config.account)?.loginIdentifier,
       }),
     ),
     skippedTargets: plan.skippedTargets,
@@ -387,7 +411,7 @@ const writePlan = async ({
 const main = async (argv = process.argv): Promise<number> => {
   const args = parseArgs(argv);
   if (args.help) {
-    console.log(usage);
+    process.stdout.write(usage);
     return 0;
   }
 
@@ -395,8 +419,8 @@ const main = async (argv = process.argv): Promise<number> => {
   const plan = createPlan(ledger);
   await writePlan({ plan, outputDir: args.outputDir });
 
-  console.log(
-    JSON.stringify(
+  process.stdout.write(
+    `${JSON.stringify(
       {
         wrote: args.outputDir,
         runnableTargets: plan.runnableTargets.map(
@@ -410,14 +434,14 @@ const main = async (argv = process.argv): Promise<number> => {
       },
       null,
       2,
-    ),
+    )}\n`,
   );
 
   return 0;
 };
 
 const exitCode = await main(process.argv).catch((error) => {
-  console.error(errorMessage(error));
+  process.stderr.write(`${errorMessage(error)}\n`);
   return 1;
 });
 

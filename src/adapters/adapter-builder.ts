@@ -30,7 +30,10 @@ export const createRoleBasedAdapter = ({
   primaryCleanupPrefixes: readonly string[];
   secondaryCleanupPrefixes: readonly string[];
   dualSuiteDefaults?: FlexibleRecord;
-}): { createAccount: (raw?: FlexibleRecord) => AccountConfig; adapter: Adapter } => {
+}): {
+  createAccount: (raw?: FlexibleRecord) => AccountConfig;
+  adapter: Adapter;
+} => {
   const createAccount = ({
     role = "primary",
     ...account
@@ -40,7 +43,7 @@ export const createRoleBasedAdapter = ({
 
     return createAccountConfig({
       cleanupPostPrefixes,
-      ...roleDefaults(role),
+      ...roleDefaults(String(role)),
       ...account,
     });
   };
@@ -83,13 +86,13 @@ export const createRoleBasedAdapter = ({
   const createSingleConfig = ({
     account,
     ...rest
-  }: FlexibleRecord = {}) => {
+  }: FlexibleRecord = {}): ReturnType<Adapter["createSingleConfig"]> => {
     return createSingleRunConfig({
       ...rest,
       adapter: name,
       account: createAccount({
         role: "primary",
-        ...account,
+        ...((account as FlexibleRecord | undefined) ?? {}),
       }),
     });
   };
@@ -98,18 +101,18 @@ export const createRoleBasedAdapter = ({
     primary,
     secondary,
     ...rest
-  }: FlexibleRecord = {}) => {
+  }: FlexibleRecord = {}): ReturnType<Adapter["createDualConfig"]> => {
     return createDualRunConfig({
       ...dualSuiteDefaults,
       ...rest,
       adapter: name,
       primary: createAccount({
         role: "primary",
-        ...primary,
+        ...((primary as FlexibleRecord | undefined) ?? {}),
       }),
       secondary: createAccount({
         role: "secondary",
-        ...secondary,
+        ...((secondary as FlexibleRecord | undefined) ?? {}),
       }),
     });
   };

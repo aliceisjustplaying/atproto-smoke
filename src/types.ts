@@ -1,7 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export interface FlexibleRecord {
-  [key: string]: any;
-}
+export type FlexibleRecord = Record<string, unknown>;
 
 export interface RepoRecord extends FlexibleRecord {
   uri?: string;
@@ -58,9 +55,9 @@ export interface SuiteConfig extends FlexibleRecord {
 
 export type SingleRunConfig = SuiteConfig &
   Omit<AccountConfig, "pdsUrl" | "pdsHost"> & {
-  targetHandle: string;
-  editProfile: boolean;
-};
+    targetHandle: string;
+    editProfile: boolean;
+  };
 
 export interface DualRunConfig extends SuiteConfig {
   primary: AccountConfig;

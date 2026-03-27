@@ -1,6 +1,7 @@
+import type * as Playwright from "playwright";
 import { errorMessage } from "./runtime-utils.js";
 
-let playwright: typeof import("playwright");
+let playwright: typeof Playwright;
 const fallbackPlaywrightPath =
   "../../../../tools/browser-automation/node_modules/playwright/index.js";
 

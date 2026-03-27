@@ -1,4 +1,5 @@
 import { createRoleBasedAdapter } from "./adapter-builder.js";
+import type { FlexibleRecord } from "../types.js";
 
 export const PERLSKY_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
   "perlsky browser smoke ",
@@ -11,7 +12,7 @@ export const PERLSKY_SECONDARY_CLEANUP_PREFIXES = Object.freeze([
 export const PERLSKY_REMOTE_REPLY_POST_URL =
   "https://bsky.app/profile/alice.mosphere.at/post/3mgu5lgnsnk22";
 
-const perlskyRoleDefaults = (role) => {
+const perlskyRoleDefaults = (role: string): FlexibleRecord => {
   if (role === "secondary") {
     return {
       postText: "perlsky browser secondary post",

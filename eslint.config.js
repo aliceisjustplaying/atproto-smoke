@@ -40,10 +40,7 @@ export default tseslint.config(
         "error",
         { prefer: "type-imports" },
       ],
-      "@typescript-eslint/consistent-type-definitions": [
-        "error",
-        "interface",
-      ],
+      "@typescript-eslint/consistent-type-definitions": ["error", "interface"],
       "@typescript-eslint/naming-convention": [
         "error",
         {
@@ -79,6 +76,36 @@ export default tseslint.config(
       "@typescript-eslint/restrict-template-expressions": "off",
       "@typescript-eslint/naming-convention": "off",
       "no-case-declarations": "off",
+    },
+  },
+  {
+    files: [
+      "scripts/write-pdslab-configs.ts",
+      "src/browser/lib/**/*.ts",
+      "src/browser/run-single.ts",
+      "src/browser/run-dual.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/strict-boolean-expressions": "off",
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      "@typescript-eslint/no-unnecessary-condition": "off",
+      "@typescript-eslint/use-unknown-in-catch-callback-variable": "off",
+      "@typescript-eslint/prefer-nullish-coalescing": "off",
+      "@typescript-eslint/prefer-regexp-exec": "off",
+      "@typescript-eslint/prefer-optional-chain": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-unnecessary-type-conversion": "off",
+      "@typescript-eslint/no-confusing-void-expression": "off",
+      "@typescript-eslint/restrict-plus-operands": "off",
+      "@typescript-eslint/no-unnecessary-boolean-literal-compare": "off",
+      "@typescript-eslint/dot-notation": "off",
     },
   },
   {
