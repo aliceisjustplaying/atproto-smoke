@@ -1,3 +1,4 @@
+import { dismissBlockingOverlays } from '../runtime-utils.mjs';
 import { createPageFeedActions } from '../page-feed-actions.mjs';
 
 export const createSingleFeedActions = ({
@@ -10,7 +11,7 @@ export const createSingleFeedActions = ({
     wait: (_page, ms) => wait(ms),
     normalizeText,
     buttonText,
-    dismissBlockingOverlays: async () => undefined,
+    dismissBlockingOverlays,
   });
 
   return {

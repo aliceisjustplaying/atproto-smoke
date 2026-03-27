@@ -12,6 +12,7 @@ export const createSingleProfileActions = ({
   pollJson,
   avatarPngBase64,
 }) => {
+  const publicCheckTimeoutMs = config.publicCheckTimeoutMs ?? 180000;
   const pageActions = createPageProfileEditActions({
     artifactsDir: config.artifactsDir,
     wait: (_page, ms) => wait(ms),
@@ -25,7 +26,7 @@ export const createSingleProfileActions = ({
       'public handle resolution',
       () => `${config.publicApiUrl}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(config.handle)}`,
       ({ ok, json }) => ok && typeof json?.did === 'string' && json.did.length > 0,
-      config.publicCheckTimeoutMs ?? 180000,
+      publicCheckTimeoutMs,
     );
     return { did: result.json.did };
   };
@@ -36,7 +37,7 @@ export const createSingleProfileActions = ({
       () => `${config.publicApiUrl}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(config.handle)}&limit=20`,
       ({ ok, json }) =>
         ok && Array.isArray(json?.feed) && json.feed.some((item) => item?.post?.record?.text === config.postText),
-      config.publicCheckTimeoutMs ?? 180000,
+      publicCheckTimeoutMs,
     );
     const matching = result.json.feed.find((item) => item?.post?.record?.text === config.postText);
     return {
@@ -50,7 +51,7 @@ export const createSingleProfileActions = ({
       'public profile indexing',
       () => `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(config.handle)}`,
       ({ ok, json }) => ok && typeof json?.postsCount === 'number' && json.postsCount > 0,
-      config.publicCheckTimeoutMs ?? 180000,
+      publicCheckTimeoutMs,
     );
     return {
       postsCount: result.json.postsCount,
@@ -70,7 +71,7 @@ export const createSingleProfileActions = ({
         json?.description === config.profileNote &&
         typeof json?.avatar === 'string' &&
         json.avatar.length > 0,
-      config.publicCheckTimeoutMs ?? 180000,
+      publicCheckTimeoutMs,
     );
     const avatarResult = await fetchStatus(result.json.avatar);
     if (!avatarResult.ok) {

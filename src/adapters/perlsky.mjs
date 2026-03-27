@@ -30,7 +30,6 @@ const perlskyRoleDefaults = (role) => {
 };
 
 const {
-  createAccount: createPerlskyAccountConfig,
   adapter: PERLSKY_ADAPTER,
 } = createRoleBasedAdapter({
   name: 'perlsky',
@@ -56,5 +55,4 @@ const {
   },
 });
 
-export { createPerlskyAccountConfig };
 export { PERLSKY_ADAPTER };

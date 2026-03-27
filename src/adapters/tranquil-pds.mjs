@@ -27,7 +27,6 @@ const tranquilRoleDefaults = (role) => {
 };
 
 const {
-  createAccount: createTranquilPdsAccountConfig,
   adapter: TRANQUIL_PDS_ADAPTER,
 } = createRoleBasedAdapter({
   name: 'tranquil-pds',
@@ -49,5 +48,4 @@ const {
   secondaryCleanupPrefixes: TRANQUIL_PDS_SECONDARY_CLEANUP_PREFIXES,
 });
 
-export { createTranquilPdsAccountConfig };
 export { TRANQUIL_PDS_ADAPTER };

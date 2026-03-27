@@ -9,8 +9,6 @@ import {
   finalizeSummary,
   launchBrowserWithFallback,
   normalizeText,
-  recordStep,
-  sleep,
 } from './runtime-utils.mjs';
 import {
   isIgnoredConsoleEntry,
@@ -73,16 +71,13 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
   };
 
   return {
-    pageFor,
     screenshot,
-    recordStep,
     normalizeText,
     isIgnoredConsole: isIgnoredConsoleEntry,
     isIgnoredRequestFailure: isIgnoredRequestFailureEntry,
     isIgnoredHttpFailure: isIgnoredHttpFailureEntry,
     step,
     wait,
-    sleep,
     buttonText,
   };
 };

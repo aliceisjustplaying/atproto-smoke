@@ -322,8 +322,6 @@ export const createPageFeedActions = ({
     findRowByPrimaryText,
     maybeFindRowByPrimaryText,
     findFirstFeedItem,
-    clickLike,
-    clickRepost,
     clickQuote,
     clickReply,
     ensureLiked,
@@ -333,7 +331,6 @@ export const createPageFeedActions = ({
     ensureBookmarked,
     ensureNotBookmarked,
     openPostOptions,
-    deletePostRow,
     maybeDeleteOwnPostByText,
   };
 };

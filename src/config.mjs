@@ -187,8 +187,12 @@ export const createSingleRunConfig = ({
   editProfile = false,
   ...rest
 } = {}) => {
+  const suite = createSuiteConfig(rest);
+  if (!suite.targetHandle) {
+    throw new Error('targetHandle is required for single-mode runs');
+  }
   return {
-    ...createSuiteConfig(rest),
+    ...suite,
     ...createAccountConfig(account),
     editProfile: !!editProfile,
   };
@@ -213,5 +217,3 @@ export const createDualRunConfig = ({
 
   return normalized;
 };
-
-export const suiteDefaults = Object.freeze({ ...DEFAULTS });

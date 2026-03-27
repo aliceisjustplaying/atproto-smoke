@@ -35,7 +35,6 @@
     "./adapters/perlsky": "./src/adapters/perlsky.mjs",
     "./adapters/tranquil-pds": "./src/adapters/tranquil-pds.mjs",
     "./adapters/registry": "./src/adapters/registry.mjs",
-    "./adapters/loader": "./src/adapters/loader.mjs",
     "./lab/pdslab-targets": "./src/lab/pdslab-targets.mjs",
     "./browser/run-single": "./src/browser/run-single.mjs",
     "./browser/run-dual": "./src/browser/run-dual.mjs",

@@ -36,7 +36,7 @@ const createBringYourOwnExampleConfig = ({ mode }) => {
   };
 };
 
-export const createBringYourOwnSingleConfig = ({
+const createBringYourOwnSingleConfig = ({
   account,
   ...rest
 } = {}) => {
@@ -46,7 +46,7 @@ export const createBringYourOwnSingleConfig = ({
   });
 };
 
-export const createBringYourOwnDualConfig = ({
+const createBringYourOwnDualConfig = ({
   primary,
   secondary,
   ...rest

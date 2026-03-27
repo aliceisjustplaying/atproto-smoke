@@ -301,11 +301,3 @@ export const PDSLAB_TARGETS = Object.freeze([
     ],
   }),
 ]);
-
-export const getPdslabTarget = (id) => {
-  return PDSLAB_TARGETS.find((target) => target.id === id);
-};
-
-export const listPdslabTargets = () => {
-  return PDSLAB_TARGETS.map((target) => structuredClone(target));
-};

@@ -130,7 +130,7 @@ export const runDualFromConfig = async (config) => {
   });
   await fs.writeFile(
     path.join(config.artifactsDir, 'summary.json'),
-    JSON.stringify(summary, null, 2) + '\n',
+    `${JSON.stringify(summary, null, 2)}\n`,
     'utf8',
   );
   console.log(JSON.stringify(summary, null, 2));

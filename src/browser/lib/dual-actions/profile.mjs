@@ -1,6 +1,8 @@
 import {
+  buttonText,
   dismissBlockingOverlays,
   loginToBlueskyApp,
+  normalizeText,
   pollJsonUntil,
 } from '../runtime-utils.mjs';
 import { createPageAuthActions } from '../page-auth-actions.mjs';
@@ -17,6 +19,7 @@ export const createDualProfileActions = ({
   fetchStatus,
   avatarPngBase64,
 }) => {
+  const publicCheckTimeoutMs = config.publicCheckTimeoutMs ?? 180000;
   const authActions = createPageAuthActions({
     appUrl: config.appUrl,
     appBaseUrl,
@@ -25,15 +28,8 @@ export const createDualProfileActions = ({
   });
   const feedActions = createPageFeedActions({
     wait,
-    normalizeText: (text) => (text || '').replace(/\s+/g, ' ').trim(),
-    buttonText: async (locator) => {
-      const label = await locator.getAttribute('aria-label');
-      if (label && label.trim()) {
-        return label.trim();
-      }
-      const text = await locator.innerText().catch(() => '');
-      return text.trim();
-    },
+    normalizeText,
+    buttonText,
     dismissBlockingOverlays,
   });
   const profileEditActions = createPageProfileEditActions({
@@ -251,7 +247,7 @@ export const createDualProfileActions = ({
         json?.description === account.profileNote &&
         typeof json?.avatar === 'string' &&
         json.avatar.length > 0,
-      timeoutMs: config.publicCheckTimeoutMs ?? 180000,
+      timeoutMs: publicCheckTimeoutMs,
       fetchJson,
     });
     const avatarResult = await fetchStatus(result.json.avatar);

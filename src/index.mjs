@@ -3,7 +3,6 @@ export * from './adapters/bring-your-own.mjs';
 export * from './adapters/perlsky.mjs';
 export * from './adapters/tranquil-pds.mjs';
 export * from './adapters/registry.mjs';
-export * from './adapters/loader.mjs';
 export * from './lab/pdslab-targets.mjs';
 export * from './browser/run-single.mjs';
 export * from './browser/run-dual.mjs';

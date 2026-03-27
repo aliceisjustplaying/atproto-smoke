@@ -95,9 +95,6 @@ export const createDualApiHelpers = ({ config }) => {
     return (result.json?.records || []).map(normalizeRepoRecord);
   };
 
-  const listOwnPosts = async (account, limit = 100) =>
-    listOwnRecords(account, 'app.bsky.feed.post', limit);
-
   const recordRkey = (recordOrUri) => {
     const uri = typeof recordOrUri === 'string' ? recordOrUri : recordOrUri?.uri;
     return uri?.split('/').pop();

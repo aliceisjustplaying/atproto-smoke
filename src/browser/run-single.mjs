@@ -124,7 +124,7 @@ export const runSingleFromConfig = async (config) => {
   await screenshot('final').catch(() => undefined);
   await fs.writeFile(
     path.join(config.artifactsDir, 'summary.json'),
-    JSON.stringify(summary, null, 2) + '\n',
+    `${JSON.stringify(summary, null, 2)}\n`,
     'utf8',
   );
   console.log(JSON.stringify(summary, null, 2));
