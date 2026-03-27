@@ -3,16 +3,9 @@ import {
   fetchStatusWithTimeout,
   sleep,
 } from './runtime-utils.mjs';
+import { derivePdsHost } from '../../config.mjs';
 
 export const createDualApiHelpers = ({ config }) => {
-  const deriveHost = (pdsUrl) => {
-    try {
-      return new URL(pdsUrl).host;
-    } catch {
-      return undefined;
-    }
-  };
-
   const fetchJson = (url, options = {}) => fetchJsonWithTimeout(url, options);
 
   const fetchStatus = (url, options = {}) => fetchStatusWithTimeout(url, options);
@@ -262,7 +255,7 @@ export const createDualApiHelpers = ({ config }) => {
   const accountFromConfig = (entry) => ({
     ...entry,
     pdsUrl: entry.pdsUrl || config.pdsUrl,
-    pdsHost: entry.pdsHost || deriveHost(entry.pdsUrl || config.pdsUrl),
+    pdsHost: entry.pdsHost || derivePdsHost(entry.pdsUrl || config.pdsUrl),
     loginIdentifier: entry.loginIdentifier || entry.handle,
     mediaPostText: entry.mediaPostText || `${entry.postText} image`,
     shortHandle: entry.handle.replace(/^@/, ''),
@@ -324,7 +317,6 @@ export const createDualApiHelpers = ({ config }) => {
     fetchStatus,
     xrpcJson,
     listOwnRecords,
-    listOwnPosts,
     deleteOwnRecord,
     purgeOwnRecords,
     waitForOwnRecord,
@@ -336,7 +328,6 @@ export const createDualApiHelpers = ({ config }) => {
     recordRkey,
     createSession,
     pollNotifications,
-    accountFromConfig,
     prepareAccounts,
     cleanupStaleSmokeArtifacts,
   };

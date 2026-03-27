@@ -64,7 +64,7 @@ const normalizeCleanupPrefixes = (prefixes) => {
     .filter(Boolean);
 };
 
-const derivePdsHost = (pdsUrl) => {
+export const derivePdsHost = (pdsUrl) => {
   try {
     return new URL(pdsUrl).host;
   } catch {

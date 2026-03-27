@@ -48,9 +48,6 @@ export const createSettingsHelpers = ({ appBaseUrl, wait }) => {
   };
 
   return {
-    openSettingRoute,
-    roleSetting,
-    settingState,
     setCheckboxSetting,
     setRadioSetting,
   };

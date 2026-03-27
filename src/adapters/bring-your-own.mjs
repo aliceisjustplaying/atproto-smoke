@@ -36,17 +36,13 @@ const createBringYourOwnExampleConfig = ({ mode }) => {
   };
 };
 
-export const createBringYourOwnAccount = (account = {}) => {
-  return createAccountConfig(account);
-};
-
 export const createBringYourOwnSingleConfig = ({
   account,
   ...rest
 } = {}) => {
   return createSingleRunConfig({
     ...rest,
-    account: createBringYourOwnAccount(account),
+    account: createAccountConfig(account),
   });
 };
 
@@ -57,8 +53,8 @@ export const createBringYourOwnDualConfig = ({
 } = {}) => {
   return createDualRunConfig({
     ...rest,
-    primary: createBringYourOwnAccount(primary),
-    secondary: createBringYourOwnAccount(secondary),
+    primary: createAccountConfig(primary),
+    secondary: createAccountConfig(secondary),
   });
 };
 

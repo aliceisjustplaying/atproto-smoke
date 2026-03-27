@@ -1,3 +1,8 @@
+const remoteReplyHandleFromUrl = (postUrl) => {
+  const match = postUrl?.match(/\/profile\/([^/]+)\/post\//);
+  return match ? decodeURIComponent(match[1]) : undefined;
+};
+
 export const runDualSetupPhase = async ({
   config,
   step,
@@ -335,8 +340,7 @@ export const runDualPrimaryWavePhase = async ({
 
   if (config.remoteReplyPostUrl) {
     const remoteReplyText = `${primary.replyText} remote`;
-    const remoteReplyHandleMatch = config.remoteReplyPostUrl.match(/\/profile\/([^/]+)\/post\//);
-    const remoteReplyHandle = remoteReplyHandleMatch ? decodeURIComponent(remoteReplyHandleMatch[1]) : undefined;
+    const remoteReplyHandle = remoteReplyHandleFromUrl(config.remoteReplyPostUrl);
 
     if (remoteReplyHandle) {
       await step('primary-prepare-configured-remote-reply-target', async () => {
@@ -602,8 +606,7 @@ export const runDualCleanupPhase = async ({
   }, { optional: true, pageNames: ['secondary'] });
 
   if (config.remoteReplyPostUrl && primary.remoteReplyWasFollowingTarget === false) {
-    const remoteReplyHandleMatch = config.remoteReplyPostUrl.match(/\/profile\/([^/]+)\/post\//);
-    const remoteReplyHandle = remoteReplyHandleMatch ? decodeURIComponent(remoteReplyHandleMatch[1]) : undefined;
+    const remoteReplyHandle = remoteReplyHandleFromUrl(config.remoteReplyPostUrl);
     if (remoteReplyHandle) {
       await step('primary-cleanup-remote-reply-target-follow', async () => {
         await gotoProfile(primaryPage, remoteReplyHandle);

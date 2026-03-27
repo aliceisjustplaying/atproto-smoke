@@ -3,8 +3,9 @@ import {
   loginToBlueskyApp,
   pollJsonUntil,
 } from '../runtime-utils.mjs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { createPageAuthActions } from '../page-auth-actions.mjs';
+import { createPageFeedActions } from '../page-feed-actions.mjs';
+import { createPageProfileEditActions } from '../page-profile-edit-actions.mjs';
 
 export const createDualProfileActions = ({
   appBaseUrl,
@@ -16,6 +17,33 @@ export const createDualProfileActions = ({
   fetchStatus,
   avatarPngBase64,
 }) => {
+  const authActions = createPageAuthActions({
+    appUrl: config.appUrl,
+    appBaseUrl,
+    wait,
+    loginToBlueskyApp,
+  });
+  const feedActions = createPageFeedActions({
+    wait,
+    normalizeText: (text) => (text || '').replace(/\s+/g, ' ').trim(),
+    buttonText: async (locator) => {
+      const label = await locator.getAttribute('aria-label');
+      if (label && label.trim()) {
+        return label.trim();
+      }
+      const text = await locator.innerText().catch(() => '');
+      return text.trim();
+    },
+    dismissBlockingOverlays,
+  });
+  const profileEditActions = createPageProfileEditActions({
+    artifactsDir: config.artifactsDir,
+    wait,
+    dismissBlockingOverlays,
+    avatarPngBase64,
+    notes: summary.notes,
+  });
+
   const parseCompactCount = (raw) => {
     if (typeof raw !== 'string') {
       return undefined;
@@ -31,17 +59,9 @@ export const createDualProfileActions = ({
     return Math.round(base * multiplier);
   };
 
-  const ensureAvatarFixture = async () => {
-    const file = path.join(config.artifactsDir, 'avatar-fixture.png');
-    await fs.writeFile(file, Buffer.from(avatarPngBase64, 'base64'));
-    return file;
-  };
-
   const login = async (page, account) => {
     const loginIdentifier = account.loginIdentifier || account.handle;
-    await loginToBlueskyApp({
-      page,
-      appUrl: config.appUrl,
+    await authActions.login(page, {
       pdsHost: account.pdsHost || config.pdsHost,
       loginIdentifier,
       password: account.password,
@@ -50,31 +70,16 @@ export const createDualProfileActions = ({
     });
   };
 
-  const completeAgeAssuranceIfNeeded = async (page, account) => {
-    const addBirthdate = page.getByRole('button', { name: /(?:update|add) your birthdate/i });
-    if (await addBirthdate.count()) {
-      await addBirthdate.click({ noWaitAfter: true });
-      await wait(page, 800);
-      await page.getByTestId('birthdayInput').fill(account.birthdate);
-      await page.getByRole('button', { name: /save birthdate/i }).click({ noWaitAfter: true });
-      await wait(page, 3000);
-      summary.notes.push(`Completed age-assurance birthdate gate for ${account.handle}`);
-    }
-  };
-
-  const gotoProfile = async (page, handle) => {
-    await page.goto(`${appBaseUrl}/profile/${encodeURIComponent(handle)}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000,
+  const completeAgeAssuranceIfNeeded = async (page, account) =>
+    authActions.completeAgeAssuranceIfNeeded(page, {
+      birthdate: account.birthdate,
+      notes: summary.notes,
+      noteText: `Completed age-assurance birthdate gate for ${account.handle}`,
     });
-    await wait(page, 3000);
-  };
 
-  const waitForProfileHandle = async (page, handle, timeout = 20000) => {
-    const shortHandle = handle.replace(/^@/, '');
-    const handleText = `@${shortHandle}`;
-    await page.getByText(handleText).first().waitFor({ state: 'visible', timeout });
-  };
+  const gotoProfile = authActions.gotoProfile;
+
+  const waitForProfileHandle = authActions.waitForProfileHandle;
 
   const readRenderedProfileCounts = async (page) => {
     const raw = await page.evaluate(() => {
@@ -184,19 +189,10 @@ export const createDualProfileActions = ({
     throw lastError || new Error(`failed to read profile counts for ${profileHandle}`);
   };
 
-  const composePost = async (page, text) => {
-    await page.locator('[aria-label="Compose new post"]').last().click({ noWaitAfter: true });
-    await wait(page, 800);
-    const editor = page.locator('[aria-label="Rich-Text Editor"]').last();
-    await editor.click({ noWaitAfter: true });
-    await editor.fill(text);
-    await wait(page, 300);
-    await page.getByRole('button', { name: 'Publish post' }).click({ noWaitAfter: true });
-    await wait(page, 4000);
-  };
+  const composePost = feedActions.composePost;
 
   const uploadComposerMedia = async (page) => {
-    const mediaFile = await ensureAvatarFixture();
+    const mediaFile = await profileEditActions.ensureAvatarFixture();
     const openMedia = page.getByTestId('openMediaBtn').last();
     if (!(await openMedia.count())) {
       throw new Error('composer media button unavailable');
@@ -222,75 +218,11 @@ export const createDualProfileActions = ({
     return { mediaFile };
   };
 
-  const uploadProfileAvatar = async (page) => {
-    const avatarFile = await ensureAvatarFixture();
-    const fileInputs = page.locator('input[type="file"]');
-    const count = await fileInputs.count();
-
-    if (count === 0) {
-      const changeAvatar = page.getByTestId('changeAvatarBtn').first();
-      if (await changeAvatar.count()) {
-        await changeAvatar.click({ noWaitAfter: true });
-        await wait(page, 500);
-        const uploadFromFiles = page.getByTestId('changeAvatarLibraryBtn').first();
-        if (await uploadFromFiles.count()) {
-          const chooserPromise = page.waitForEvent('filechooser', { timeout: 10000 });
-          await uploadFromFiles.click({ noWaitAfter: true });
-          const chooser = await chooserPromise;
-          await chooser.setFiles(avatarFile);
-          await wait(page, 750);
-          const editImageHeading = page.getByText(/^Edit image$/).last();
-          if (await editImageHeading.count()) {
-            await editImageHeading.waitFor({ state: 'visible', timeout: 10000 });
-            const cropSave = page.getByRole('button', { name: 'Save' }).last();
-            await cropSave.click({ noWaitAfter: true });
-            await editImageHeading.waitFor({ state: 'hidden', timeout: 15000 });
-          }
-          await wait(page, 1500);
-          return avatarFile;
-        }
-      }
-    }
-
-    if (count === 0) {
-      throw new Error('profile avatar file input unavailable');
-    }
-
-    await fileInputs.first().setInputFiles(avatarFile);
-    await wait(page, 1500);
-    return avatarFile;
-  };
-
-  const editProfile = async (page, account) => {
-    const edit = page.getByRole('button', { name: /edit profile/i });
-    if (!(await edit.count())) {
-      throw new Error(`edit profile button unavailable for ${account.handle}`);
-    }
-    await edit.click({ noWaitAfter: true });
-    await wait(page, 1000);
-    await dismissBlockingOverlays(page);
-    const avatarFile = await uploadProfileAvatar(page);
-    const bioField = page.locator('textarea[aria-label="Description"]').first();
-    if (await bioField.count()) {
-      await bioField.fill(account.profileNote);
-      const actual = await bioField.inputValue();
-      if (actual !== account.profileNote) {
-        throw new Error(`profile description fill did not stick for ${account.handle}: ${actual}`);
-      }
-    }
-    const save = page.getByTestId('editProfileSaveBtn');
-    await save.waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForFunction(() => {
-      const btn = document.querySelector('[data-testid="editProfileSaveBtn"]');
-      return !!btn && !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
-    }, undefined, { timeout: 15000 });
-    await save.click({ noWaitAfter: true });
-    await page.waitForFunction(() => !document.querySelector('[data-testid="editProfileSaveBtn"]'), undefined, {
-      timeout: 15000,
+  const editProfile = async (page, account) =>
+    profileEditActions.editProfile(page, {
+      profileNote: account.profileNote,
+      handle: account.handle,
     });
-    await wait(page, 3000);
-    return { avatarFile, profileNote: account.profileNote };
-  };
 
   const verifyLocalProfileAfterEdit = async (account) => {
     const didResult = await xrpcJson('com.atproto.identity.resolveHandle', {

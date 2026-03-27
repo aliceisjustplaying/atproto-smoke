@@ -188,20 +188,10 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
   };
 
   return {
-    openLists,
-    waitForListPageReady,
     openListPage,
-    waitForListTitle,
-    fillListEditor,
-    saveListEditor,
     createList,
-    openCurrentListOptions,
     editCurrentList,
     deleteCurrentList,
-    openListPeopleTab,
-    openAddPeopleToList,
-    closeAddPeopleToList,
-    searchAddPeopleList,
     addUserToCurrentList,
     removeUserFromCurrentList,
   };

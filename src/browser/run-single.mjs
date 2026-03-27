@@ -75,10 +75,6 @@ export const runSingleFromConfig = async (config) => {
     });
   };
 
-  const isIgnoredConsole = isIgnoredConsoleEntry;
-  const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
-  const isIgnoredHttpFailure = isIgnoredHttpFailureEntry;
-
   const step = async (name, fn, { optional = false } = {}) => {
   emitProgress('start', name);
   try {
@@ -203,9 +199,9 @@ const {
   finalizeSummary({
     summary,
     strictErrors: config.strictErrors,
-    isIgnoredConsole,
-    isIgnoredRequestFailure,
-    isIgnoredHttpFailure,
+    isIgnoredConsole: isIgnoredConsoleEntry,
+    isIgnoredRequestFailure: isIgnoredRequestFailureEntry,
+    isIgnoredHttpFailure: isIgnoredHttpFailureEntry,
   });
   await screenshot('final').catch(() => undefined);
   await fs.writeFile(

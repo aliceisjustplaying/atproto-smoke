@@ -5,7 +5,6 @@ import {
   buttonText,
   closeBrowserSafely,
   createProgressEmitter,
-  dismissBlockingOverlays,
   finalizeSummary,
   launchBrowserWithFallback,
   normalizeText,
@@ -63,10 +62,6 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     });
   };
 
-  const isIgnoredConsole = isIgnoredConsoleEntry;
-  const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
-  const isIgnoredHttpFailure = isIgnoredHttpFailureEntry;
-
   const step = async (name, fn, { optional = false, pageNames = [], timeoutMs } = {}) => {
     const effectiveTimeoutMs = Number(timeoutMs || stepTimeoutMs);
     emitProgress('start', name);
@@ -117,14 +112,13 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     screenshot,
     recordStep,
     normalizeText,
-    isIgnoredConsole,
-    isIgnoredRequestFailure,
-    isIgnoredHttpFailure,
+    isIgnoredConsole: isIgnoredConsoleEntry,
+    isIgnoredRequestFailure: isIgnoredRequestFailureEntry,
+    isIgnoredHttpFailure: isIgnoredHttpFailureEntry,
     step,
     wait,
     sleep,
     buttonText,
-    dismissBlockingOverlays,
   };
 };
 
