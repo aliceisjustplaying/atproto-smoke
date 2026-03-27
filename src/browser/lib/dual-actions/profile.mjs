@@ -1,11 +1,16 @@
+import {
+  dismissBlockingOverlays,
+  loginToBlueskyApp,
+  pollJsonUntil,
+} from '../runtime-utils.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export const createDualProfileActions = ({
+  appBaseUrl,
   config,
   summary,
   wait,
-  sleep,
   xrpcJson,
   fetchJson,
   fetchStatus,
@@ -34,25 +39,13 @@ export const createDualProfileActions = ({
 
   const login = async (page, account) => {
     const loginIdentifier = account.loginIdentifier || account.handle;
-    await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.getByRole('button', { name: 'Sign in' }).nth(0).evaluate((el) => el.click());
-    await wait(page, 1000);
-    await page.getByRole('button', { name: 'Bluesky Social' }).evaluate((el) => el.click());
-    await wait(page, 500);
-    await page.getByText('Custom').evaluate((el) => el.click());
-    await wait(page, 500);
-    await page.getByPlaceholder('my-server.com').fill(account.pdsHost || config.pdsHost);
-    await page.getByRole('button', { name: 'Done' }).evaluate((el) => el.click());
-    await wait(page, 500);
-    const close = page.getByRole('button', { name: 'Close welcome modal' });
-    if (await close.count()) {
-      await close.evaluate((el) => el.click());
-      await wait(page, 300);
-    }
-    await page.getByPlaceholder('Username or email address').fill(loginIdentifier);
-    await page.getByPlaceholder('Password').fill(account.password);
-    await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
-    await wait(page, 3000);
+    await loginToBlueskyApp({
+      page,
+      appUrl: config.appUrl,
+      pdsHost: account.pdsHost || config.pdsHost,
+      loginIdentifier,
+      password: account.password,
+    });
   };
 
   const completeAgeAssuranceIfNeeded = async (page, account) => {
@@ -68,7 +61,7 @@ export const createDualProfileActions = ({
   };
 
   const gotoProfile = async (page, handle) => {
-    await page.goto(`${config.appUrl.replace(/\/$/, '')}/profile/${encodeURIComponent(handle)}`, {
+    await page.goto(`${appBaseUrl}/profile/${encodeURIComponent(handle)}`, {
       waitUntil: 'domcontentloaded',
       timeout: 60000,
     });
@@ -227,18 +220,10 @@ export const createDualProfileActions = ({
     return { mediaFile };
   };
 
-  const dismissModalBackdropIfPresent = async (page) => {
-    const backdrop = page.locator('[aria-label*="click to close"]').last();
-    if (await backdrop.count()) {
-      await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
-      await wait(page, 400);
-    }
-  };
-
   const uploadProfileAvatar = async (page) => {
     const avatarFile = await ensureAvatarFixture();
-    let fileInputs = page.locator('input[type="file"]');
-    let count = await fileInputs.count();
+    const fileInputs = page.locator('input[type="file"]');
+    const count = await fileInputs.count();
 
     if (count === 0) {
       const changeAvatar = page.getByTestId('changeAvatarBtn').first();
@@ -281,7 +266,7 @@ export const createDualProfileActions = ({
     }
     await edit.click({ noWaitAfter: true });
     await wait(page, 1000);
-    await dismissModalBackdropIfPresent(page);
+    await dismissBlockingOverlays(page);
     const avatarFile = await uploadProfileAvatar(page);
     const bioField = page.locator('textarea[aria-label="Description"]').first();
     if (await bioField.count()) {
@@ -333,28 +318,18 @@ export const createDualProfileActions = ({
   };
 
   const verifyPublicProfileAfterEdit = async (account) => {
-    const started = Date.now();
-    let result;
-    while (Date.now() - started < (config.publicCheckTimeoutMs ?? 180000)) {
-      result = await fetchJson(
+    const result = await pollJsonUntil({
+      name: `public profile edit indexing for ${account.handle}`,
+      buildUrl: () =>
         `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(account.handle)}`,
-      );
-      if (
-        result.ok &&
-        result.json?.description === account.profileNote &&
-        typeof result.json?.avatar === 'string' &&
-        result.json.avatar.length > 0
-      ) {
-        break;
-      }
-      await sleep(5000);
-    }
-    if (!result?.ok) {
-      throw new Error(`public profile lookup failed for ${account.handle}: ${result?.status} ${result?.text}`);
-    }
-    if (result.json?.description !== account.profileNote || typeof result.json?.avatar !== 'string') {
-      throw new Error(`public profile missing updated description/avatar for ${account.handle}`);
-    }
+      predicate: ({ ok, json }) =>
+        ok &&
+        json?.description === account.profileNote &&
+        typeof json?.avatar === 'string' &&
+        json.avatar.length > 0,
+      timeoutMs: config.publicCheckTimeoutMs ?? 180000,
+      fetchJson,
+    });
     const avatarResult = await fetchStatus(result.json.avatar);
     if (!avatarResult.ok) {
       throw new Error(`public avatar URL returned ${avatarResult.status} for ${account.handle}`);

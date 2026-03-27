@@ -8,6 +8,7 @@ import { createListHelpers } from './lib/lists.mjs';
 import { createSettingsHelpers } from './lib/settings.mjs';
 import { runDualScenario } from './lib/dual-scenario.mjs';
 import { createDualActions } from './lib/dual-actions.mjs';
+import { AVATAR_PNG_BASE64, sleep } from './lib/runtime-utils.mjs';
 
 export const runDualFromConfig = async (config) => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
@@ -37,8 +38,6 @@ export const runDualFromConfig = async (config) => {
     summary.notes.push(`account source: ${config.accountSource}`);
   }
 
-  const AVATAR_PNG_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC';
   const { browser, primaryPage, secondaryPage } = await setupDualBrowser({ config, summary });
   const {
     screenshot,
@@ -50,7 +49,6 @@ export const runDualFromConfig = async (config) => {
     wait,
     buttonText,
   } = createDualStepHelpers({ config, summary, primaryPage, secondaryPage });
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const {
     fetchJson,
     fetchStatus,

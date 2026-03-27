@@ -1,10 +1,10 @@
 import {
   fetchJsonWithTimeout,
   fetchStatusWithTimeout,
+  sleep,
 } from './runtime-utils.mjs';
 
 export const createDualApiHelpers = ({ config }) => {
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const deriveHost = (pdsUrl) => {
     try {
       return new URL(pdsUrl).host;
@@ -18,6 +18,7 @@ export const createDualApiHelpers = ({ config }) => {
   const fetchStatus = (url, options = {}) => fetchStatusWithTimeout(url, options);
 
   const collectionFromUri = (uri) => {
+    // Example: at://did:plc:123/app.bsky.feed.post/3kabc -> app.bsky.feed.post
     if (typeof uri !== 'string') {
       return undefined;
     }

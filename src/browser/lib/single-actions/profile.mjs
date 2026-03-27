@@ -1,3 +1,6 @@
+import {
+  dismissBlockingOverlays,
+} from '../runtime-utils.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -105,18 +108,10 @@ export const createSingleProfileActions = ({
     };
   };
 
-  const dismissModalBackdropIfPresent = async () => {
-    const backdrop = page.locator('[aria-label*="click to close"]').last();
-    if (await backdrop.count()) {
-      await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
-      await wait(400);
-    }
-  };
-
   const uploadProfileAvatar = async () => {
     const avatarFile = await ensureAvatarFixture();
-    let fileInputs = page.locator('input[type="file"]');
-    let count = await fileInputs.count();
+    const fileInputs = page.locator('input[type="file"]');
+    const count = await fileInputs.count();
 
     if (count === 0) {
       const changeAvatar = page.getByTestId('changeAvatarBtn').first();
@@ -162,7 +157,7 @@ export const createSingleProfileActions = ({
     }
     await edit.click({ noWaitAfter: true });
     await wait(1000);
-    await dismissModalBackdropIfPresent();
+    await dismissBlockingOverlays(page);
     const avatarFile = await uploadProfileAvatar();
     const bioField = page.locator('textarea[aria-label="Description"]').first();
     if (await bioField.count()) {

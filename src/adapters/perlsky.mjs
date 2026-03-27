@@ -1,8 +1,4 @@
-import {
-  createAccountConfig,
-  createDualRunConfig,
-  createSingleRunConfig,
-} from '../config.mjs';
+import { createRoleBasedAdapter } from './adapter-builder.mjs';
 
 export const PERLSKY_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
   'perlsky browser smoke ',
@@ -33,89 +29,10 @@ const perlskyRoleDefaults = (role) => {
   };
 };
 
-const createPerlskyExampleConfig = ({ mode }) => {
-  const base = {
-    pdsUrl: 'https://perlsky.mosphere.at',
-    artifactsDir: `data/browser-smoke/perlsky-${mode}`,
-    targetHandle: 'alice.mosphere.at',
-    remoteReplyPostUrl: PERLSKY_REMOTE_REPLY_POST_URL,
-    strictErrors: true,
-  };
-
-  if (mode === 'single') {
-    return {
-      ...base,
-      editProfile: true,
-      account: {
-        handle: 'smoke-primary.perlsky.mosphere.at',
-        password: 'replace-me',
-      },
-    };
-  }
-
-  return {
-    ...base,
-    primary: {
-      handle: 'smoke-primary.perlsky.mosphere.at',
-      password: 'replace-me',
-    },
-    secondary: {
-      handle: 'smoke-secondary.perlsky.mosphere.at',
-      password: 'replace-me-too',
-    },
-  };
-};
-
-export const createPerlskyAccountConfig = ({
-  role = 'primary',
-  ...account
-} = {}) => {
-  const cleanupPostPrefixes = role === 'secondary'
-    ? PERLSKY_SECONDARY_CLEANUP_PREFIXES
-    : PERLSKY_PRIMARY_CLEANUP_PREFIXES;
-
-  return createAccountConfig({
-    cleanupPostPrefixes,
-    ...perlskyRoleDefaults(role),
-    ...account,
-  });
-};
-
-export const createPerlskySingleConfig = ({
-  account,
-  ...rest
-} = {}) => {
-  return createSingleRunConfig({
-    ...rest,
-    adapter: 'perlsky',
-    account: createPerlskyAccountConfig({
-      role: 'primary',
-      ...account,
-    }),
-  });
-};
-
-export const createPerlskyDualConfig = ({
-  primary,
-  secondary,
-  ...rest
-} = {}) => {
-  return createDualRunConfig({
-    remoteReplyPostUrl: PERLSKY_REMOTE_REPLY_POST_URL,
-    ...rest,
-    adapter: 'perlsky',
-    primary: createPerlskyAccountConfig({
-      role: 'primary',
-      ...primary,
-    }),
-    secondary: createPerlskyAccountConfig({
-      role: 'secondary',
-      ...secondary,
-    }),
-  });
-};
-
-export const PERLSKY_ADAPTER = Object.freeze({
+const {
+  createAccount: createPerlskyAccountConfig,
+  adapter: PERLSKY_ADAPTER,
+} = createRoleBasedAdapter({
   name: 'perlsky',
   description: 'Use perlsky-flavored defaults like cleanup prefixes and adapter tagging.',
   accountStrategy: 'existing-accounts-or-bootstrap',
@@ -123,7 +40,21 @@ export const PERLSKY_ADAPTER = Object.freeze({
     'The standalone suite still expects credentials in the config.',
     'perlsky-specific account bootstrap and reusable-pair helpers live in perlsky, not in atproto-smoke itself.',
   ],
-  createSingleConfig: createPerlskySingleConfig,
-  createDualConfig: createPerlskyDualConfig,
-  createExampleConfig: createPerlskyExampleConfig,
+  exampleBase: {
+    pdsUrl: 'https://perlsky.mosphere.at',
+    targetHandle: 'alice.mosphere.at',
+    strictErrors: true,
+    remoteReplyPostUrl: PERLSKY_REMOTE_REPLY_POST_URL,
+    primaryHandle: 'smoke-primary.perlsky.mosphere.at',
+    secondaryHandle: 'smoke-secondary.perlsky.mosphere.at',
+  },
+  roleDefaults: perlskyRoleDefaults,
+  primaryCleanupPrefixes: PERLSKY_PRIMARY_CLEANUP_PREFIXES,
+  secondaryCleanupPrefixes: PERLSKY_SECONDARY_CLEANUP_PREFIXES,
+  dualSuiteDefaults: {
+    remoteReplyPostUrl: PERLSKY_REMOTE_REPLY_POST_URL,
+  },
 });
+
+export { createPerlskyAccountConfig };
+export { PERLSKY_ADAPTER };

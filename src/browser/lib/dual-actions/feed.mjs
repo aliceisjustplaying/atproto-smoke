@@ -1,3 +1,5 @@
+import { dismissBlockingOverlays } from '../runtime-utils.mjs';
+
 export const createDualFeedActions = ({
   appBaseUrl,
   wait,
@@ -55,36 +57,19 @@ export const createDualFeedActions = ({
     await wait(page, 1500);
   };
 
-  const dismissBlockingOverlays = async (page) => {
-    const backdrop = page.locator('[aria-label*="click to close"]').last();
-    if (await backdrop.count()) {
-      await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
-      await wait(page, 400);
-    }
-
-    const dialog = page.locator('[role="dialog"][aria-modal="true"]').last();
-    if (await dialog.count()) {
-      const close = dialog.getByRole('button', { name: /close/i }).last();
-      if (await close.count()) {
-        await close.click({ noWaitAfter: true }).catch(() => undefined);
-        await wait(page, 400);
-      }
-      await page.keyboard.press('Escape').catch(() => undefined);
-      await wait(page, 400);
-    }
-  };
-
-  const clickRepost = async (page, row) => {
+  const clickRepost = async (page, row, actionPattern = /^Repost$/i) => {
     await dismissBlockingOverlays(page);
     const btn = row.getByTestId('repostBtn').first();
     await btn.click({ noWaitAfter: true });
     await wait(page, 500);
-    const repost = page.getByText(/^Repost$/).last();
+    const repost = page.getByText(actionPattern).last();
     if (await repost.count()) {
       await repost.click({ noWaitAfter: true });
       await wait(page, 1500);
       await dismissBlockingOverlays(page);
+      return;
     }
+    await wait(page, 1500);
   };
 
   const ensureLiked = async (page, row) => {
@@ -123,8 +108,7 @@ export const createDualFeedActions = ({
     if (!/undo repost|remove repost/i.test(before)) {
       return { note: 'already not reposted' };
     }
-    await btn.click({ noWaitAfter: true });
-    await wait(page, 1500);
+    await clickRepost(page, row, /^(?:Undo repost|Remove repost)$/i);
     return { note: await buttonText(btn) };
   };
 

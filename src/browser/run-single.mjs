@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from './lib/playwright-runtime.mjs';
 import {
+  AVATAR_PNG_BASE64,
   attachPageLogging,
   buttonText,
   closeBrowserSafely,
@@ -11,6 +12,9 @@ import {
   fetchStatusWithTimeout,
   finalizeSummary,
   launchBrowserWithFallback,
+  normalizeText,
+  pollJsonUntil,
+  sleep,
 } from './lib/runtime-utils.mjs';
 import {
   isIgnoredConsoleEntry,
@@ -44,9 +48,6 @@ export const runSingleFromConfig = async (config) => {
   const progressEnabled = config.progress !== false;
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
-  const AVATAR_PNG_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC';
-
   const browser = await launchBrowserWithFallback({ chromium, config, summary });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
@@ -73,8 +74,6 @@ export const runSingleFromConfig = async (config) => {
       ...extra,
     });
   };
-
-  const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
 
   const isIgnoredConsole = isIgnoredConsoleEntry;
   const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
@@ -103,31 +102,25 @@ export const runSingleFromConfig = async (config) => {
   };
 
   const wait = (ms) => page.waitForTimeout(ms);
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const fetchJson = async (url, timeoutMs = 30000) =>
+  const fetchJson = async (url, options = {}) =>
     fetchJsonWithTimeout(url, {
       headers: { accept: 'application/json' },
-      timeoutMs,
+      timeoutMs: options.timeoutMs ?? 30000,
     });
 
-  const fetchStatus = async (url, timeoutMs = 30000) =>
+  const fetchStatus = async (url, options = {}) =>
     fetchStatusWithTimeout(url, {
-      timeoutMs,
+      timeoutMs: options.timeoutMs ?? 30000,
     });
 
-  const pollJson = async (name, buildUrl, predicate, timeoutMs) => {
-  const started = Date.now();
-  let last;
-  while (Date.now() - started < timeoutMs) {
-    last = await fetchJson(buildUrl(), Math.min(timeoutMs, 30000));
-    if (predicate(last)) {
-      return last;
-    }
-    await sleep(5000);
-  }
-  throw new Error(`${name} did not succeed before timeout; last status=${last?.status ?? 'none'}`);
-  };
+  const pollJson = async (name, buildUrl, predicate, timeoutMs) =>
+    pollJsonUntil({
+      name,
+      buildUrl,
+      predicate,
+      timeoutMs,
+      fetchJson,
+    });
 
 const {
   login,

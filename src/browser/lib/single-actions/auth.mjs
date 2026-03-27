@@ -1,3 +1,5 @@
+import { loginToBlueskyApp } from '../runtime-utils.mjs';
+
 export const createSingleAuthActions = ({
   config,
   summary,
@@ -7,29 +9,17 @@ export const createSingleAuthActions = ({
 }) => {
   const login = async () => {
     const loginIdentifier = config.loginIdentifier || config.handle;
-    await page.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.getByRole('button', { name: 'Sign in' }).nth(0).evaluate((el) => el.click());
-    await wait(1000);
-    await page.getByRole('button', { name: 'Bluesky Social' }).evaluate((el) => el.click());
-    await wait(500);
-    await page.getByText('Custom').evaluate((el) => el.click());
-    await wait(500);
-    await page.getByPlaceholder('my-server.com').fill(config.pdsHost);
-    await page.getByRole('button', { name: 'Done' }).evaluate((el) => el.click());
-    await wait(500);
-    const close = page.getByRole('button', { name: 'Close welcome modal' });
-    if (await close.count()) {
-      await close.evaluate((el) => el.click());
-      await wait(300);
-    }
-    await page.getByPlaceholder('Username or email address').fill(loginIdentifier);
-    await page.getByPlaceholder('Password').fill(config.password);
-    await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
-    await wait(3000);
+    await loginToBlueskyApp({
+      page,
+      appUrl: config.appUrl,
+      pdsHost: config.pdsHost,
+      loginIdentifier,
+      password: config.password,
+    });
   };
 
   const completeAgeAssuranceIfNeeded = async () => {
-    const addBirthdate = page.getByRole('button', { name: /update your birthdate/i });
+    const addBirthdate = page.getByRole('button', { name: /(?:update|add) your birthdate/i });
     if (await addBirthdate.count()) {
       await addBirthdate.click({ noWaitAfter: true });
       await wait(800);

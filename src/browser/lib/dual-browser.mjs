@@ -5,8 +5,11 @@ import {
   buttonText,
   closeBrowserSafely,
   createProgressEmitter,
+  dismissBlockingOverlays,
   finalizeSummary,
   launchBrowserWithFallback,
+  normalizeText,
+  sleep,
 } from './runtime-utils.mjs';
 import {
   isIgnoredConsoleEntry,
@@ -60,8 +63,6 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     });
   };
 
-  const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
-
   const isIgnoredConsole = isIgnoredConsoleEntry;
   const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
   const isIgnoredHttpFailure = isIgnoredHttpFailureEntry;
@@ -109,27 +110,6 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
 
   const wait = async (page, ms) => {
     await page.waitForTimeout(ms);
-  };
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const dismissBlockingOverlays = async (page) => {
-    const backdrop = page.locator('[aria-label*="click to close"]').last();
-    if (await backdrop.count()) {
-      await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
-      await wait(page, 400);
-    }
-
-    const dialog = page.locator('[role="dialog"][aria-modal="true"]').last();
-    if (await dialog.count()) {
-      const close = dialog.getByRole('button', { name: /close/i }).last();
-      if (await close.count()) {
-        await close.click({ noWaitAfter: true }).catch(() => undefined);
-        await wait(page, 400);
-      }
-      await page.keyboard.press('Escape').catch(() => undefined);
-      await wait(page, 400);
-    }
   };
 
   return {

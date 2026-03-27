@@ -2,6 +2,13 @@ import fs from 'node:fs/promises';
 
 const SYSTEM_GOOGLE_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
+export const AVATAR_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAV0lEQVR4nO3PQQ0AIBDAMMC/58MCP7KkVbDX1pk5A6gWUC2gWkC1gGoB1QKqBVQLqBZQLaBaQLWAagHVAqoFVAuoFlAtoFpAtYBqAdUCqgVUC6gWUC2gWkD1B4a2AX/y3CvgAAAAAElFTkSuQmCC';
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
+
 export const buildBrowserLaunchCandidates = async (config) => {
   const base = {
     headless: config.headless !== false,
@@ -80,6 +87,111 @@ export const buttonText = async (locator) => {
   }
   const text = await locator.innerText().catch(() => '');
   return text.trim();
+};
+
+export const dismissBlockingOverlays = async (page) => {
+  const backdrop = page.locator('[aria-label*="click to close"]').last();
+  if (await backdrop.count()) {
+    await backdrop.click({ force: true, noWaitAfter: true }).catch(() => undefined);
+    await page.waitForTimeout(400);
+  }
+
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]').last();
+  if (await dialog.count()) {
+    const close = dialog.getByRole('button', { name: /close/i }).last();
+    if (await close.count()) {
+      await close.click({ noWaitAfter: true }).catch(() => undefined);
+      await page.waitForTimeout(400);
+    }
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(400);
+  }
+};
+
+export const loginToBlueskyApp = async ({
+  page,
+  appUrl,
+  pdsHost,
+  loginIdentifier,
+  password,
+}) => {
+  const activeScope = () => page.locator('[role="dialog"]').last();
+
+  const clickNamedControl = async (name) => {
+    const scope = activeScope();
+    const asButton = scope.getByRole('button', { name }).first();
+    if (await asButton.count()) {
+      await asButton.click({ noWaitAfter: true, force: true });
+      return;
+    }
+    const asLink = scope.getByRole('link', { name }).first();
+    if (await asLink.count()) {
+      await asLink.click({ noWaitAfter: true, force: true });
+      return;
+    }
+    await scope.getByText(name).last().click({ noWaitAfter: true, force: true });
+  };
+
+  // The service picker dialog can animate an overlay layer over its own buttons.
+  // Force-click the in-dialog choices so login is not gated on that transient layer.
+  await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await clickNamedControl('Sign in');
+  await page.waitForTimeout(1000);
+
+  const loginIdentifierField = page.getByPlaceholder('Username or email address');
+  if (await loginIdentifierField.count()) {
+    const serviceButton = page.getByTestId('selectServiceButton').first();
+    const currentService = await buttonText(serviceButton).catch(() => '');
+    if (!(new RegExp(pdsHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')).test(currentService)) {
+      await serviceButton.click({ noWaitAfter: true, force: true });
+      await page.waitForTimeout(500);
+      await clickNamedControl('Custom');
+      await page.waitForTimeout(500);
+      await page.getByPlaceholder('my-server.com').fill(pdsHost);
+      await page.getByRole('button', { name: 'Done' }).click({ noWaitAfter: true });
+      await page.waitForTimeout(500);
+    }
+  } else {
+    await clickNamedControl('Bluesky Social');
+    await page.waitForTimeout(500);
+    await clickNamedControl('Custom');
+    await page.waitForTimeout(500);
+    await page.getByPlaceholder('my-server.com').fill(pdsHost);
+    await page.getByRole('button', { name: 'Done' }).click({ noWaitAfter: true });
+    await page.waitForTimeout(500);
+  }
+
+  const close = page.getByRole('button', { name: 'Close welcome modal' });
+  if (await close.count()) {
+    await close.click({ noWaitAfter: true }).catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
+  await page.getByPlaceholder('Username or email address').fill(loginIdentifier);
+  await page.getByPlaceholder('Password').fill(password);
+  await page.getByTestId('loginNextButton').click({ noWaitAfter: true });
+  await page.waitForTimeout(3000);
+};
+
+export const pollJsonUntil = async ({
+  name,
+  buildUrl,
+  predicate,
+  timeoutMs,
+  fetchJson,
+  intervalMs = 5000,
+}) => {
+  const started = Date.now();
+  let last;
+  while (Date.now() - started < timeoutMs) {
+    last = await fetchJson(buildUrl(), {
+      timeoutMs: Math.min(timeoutMs, 30000),
+    });
+    if (predicate(last)) {
+      return last;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(`${name} did not succeed before timeout; last status=${last?.status ?? 'none'}`);
 };
 
 export const launchBrowserWithFallback = async ({ chromium, config, summary }) => {

@@ -17,7 +17,7 @@ export const createSingleFeedActions = ({
 
   const waitForProfileHandle = async (handle, timeout = 20000) => {
     const shortHandle = handle.replace(/^@/, '');
-    const handleText = shortHandle.startsWith('@') ? shortHandle : `@${shortHandle}`;
+    const handleText = `@${shortHandle}`;
     await page.getByText(handleText).first().waitFor({ state: 'visible', timeout });
   };
 
@@ -63,15 +63,17 @@ export const createSingleFeedActions = ({
     await wait(1500);
   };
 
-  const clickRepost = async (row) => {
+  const clickRepost = async (row, actionPattern = /^Repost$/i) => {
     const btn = row.getByTestId('repostBtn').first();
     await btn.click({ noWaitAfter: true });
     await wait(500);
-    const repost = page.getByText(/^Repost$/).last();
+    const repost = page.getByText(actionPattern).last();
     if (await repost.count()) {
       await repost.click({ noWaitAfter: true });
       await wait(1500);
+      return;
     }
+    await wait(1500);
   };
 
   const clickQuote = async (row, text) => {
@@ -161,8 +163,7 @@ export const createSingleFeedActions = ({
     if (!/undo repost|remove repost/i.test(before)) {
       return { note: 'already not reposted' };
     }
-    await btn.click({ noWaitAfter: true });
-    await wait(1500);
+    await clickRepost(row, /^(?:Undo repost|Remove repost)$/i);
     return { note: await buttonText(btn) };
   };
 
