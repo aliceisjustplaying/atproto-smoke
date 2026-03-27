@@ -9,6 +9,71 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
 
+export const createBaseSummary = (fields = {}) => ({
+  startedAt: new Date().toISOString(),
+  steps: [],
+  console: [],
+  pageErrors: [],
+  requestFailures: [],
+  httpFailures: [],
+  xrpc: [],
+  notes: [],
+  ...fields,
+});
+
+export const recordStep = (summary, name, status, extra = {}) => {
+  summary.steps.push({
+    name,
+    status,
+    at: new Date().toISOString(),
+    ...extra,
+  });
+};
+
+export const createStepRunner = ({
+  summary,
+  emitProgress,
+  captureArtifacts,
+  defaultTimeoutMs,
+}) => {
+  return async (name, fn, { optional = false, timeoutMs, pageNames = [] } = {}) => {
+    const effectiveTimeoutMs = Number(timeoutMs || defaultTimeoutMs || 0);
+    emitProgress('start', name);
+    let timeoutId;
+    try {
+      const result = effectiveTimeoutMs > 0
+        ? await Promise.race([
+            fn(),
+            new Promise((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(new Error(`step timed out after ${effectiveTimeoutMs}ms`));
+              }, effectiveTimeoutMs);
+            }),
+          ])
+        : await fn();
+      const artifacts = await captureArtifacts({ name, pageNames, failed: false });
+      recordStep(summary, name, 'ok', { ...artifacts, ...(result ?? {}) });
+      emitProgress('ok', name);
+      return result;
+    } catch (error) {
+      const artifacts = await captureArtifacts({ name, pageNames, failed: true });
+      recordStep(summary, name, optional ? 'skipped' : 'failed', {
+        ...artifacts,
+        error: String(error?.message ?? error),
+      });
+      emitProgress(optional ? 'skip' : 'fail', name, String(error?.message ?? error));
+      if (!optional) {
+        throw error;
+      }
+      return null;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  };
+};
+
 export const buildBrowserLaunchCandidates = async (config) => {
   const base = {
     headless: config.headless !== false,

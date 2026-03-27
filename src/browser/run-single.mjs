@@ -7,7 +7,9 @@ import {
   attachPageLogging,
   buttonText,
   closeBrowserSafely,
+  createBaseSummary,
   createProgressEmitter,
+  createStepRunner,
   fetchJsonWithTimeout,
   fetchStatusWithTimeout,
   finalizeSummary,
@@ -28,22 +30,14 @@ export const runSingleFromConfig = async (config) => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
   const appBaseUrl = config.appUrl.replace(/\/$/, '');
 
-  const summary = {
-    startedAt: new Date().toISOString(),
+  const summary = createBaseSummary({
     appUrl: config.appUrl,
     pdsUrl: config.pdsUrl,
     publicApiUrl: config.publicApiUrl,
     handle: config.handle,
     loginIdentifier: config.loginIdentifier,
     targetHandle: config.targetHandle,
-    steps: [],
-    console: [],
-    pageErrors: [],
-    requestFailures: [],
-    httpFailures: [],
-    xrpc: [],
-    notes: [],
-  };
+  });
 
   const progressEnabled = config.progress !== false;
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
@@ -66,36 +60,13 @@ export const runSingleFromConfig = async (config) => {
     return file;
   };
 
-  const recordStep = (name, status, extra = {}) => {
-    summary.steps.push({
-      name,
-      status,
-      at: new Date().toISOString(),
-      ...extra,
-    });
-  };
-
-  const step = async (name, fn, { optional = false } = {}) => {
-  emitProgress('start', name);
-  try {
-    const result = await fn();
-    const shot = await screenshot(name);
-    recordStep(name, 'ok', { screenshot: shot, ...(result ?? {}) });
-    emitProgress('ok', name);
-    return result;
-  } catch (error) {
-    const shot = await screenshot(`${name}-error`).catch(() => undefined);
-    recordStep(name, optional ? 'skipped' : 'failed', {
-      screenshot: shot,
-      error: String(error?.message ?? error),
-    });
-    emitProgress(optional ? 'skip' : 'fail', name, String(error?.message ?? error));
-    if (!optional) {
-      throw error;
-    }
-    return null;
-  }
-  };
+  const step = createStepRunner({
+    summary,
+    emitProgress,
+    captureArtifacts: async ({ name, failed }) => ({
+      screenshot: await screenshot(failed ? `${name}-error` : name).catch(() => undefined),
+    }),
+  });
 
   const wait = (ms) => page.waitForTimeout(ms);
   const fetchJson = async (url, options = {}) =>
@@ -118,79 +89,26 @@ export const runSingleFromConfig = async (config) => {
       fetchJson,
     });
 
-const {
-  login,
-  completeAgeAssuranceIfNeeded,
-  gotoProfile,
-  maybeFollowTarget,
-  composePost,
-  waitForProfileHandle,
-  findRowByPrimaryText,
-  findFirstFeedItem,
-  clickQuote,
-  clickReply,
-  ensureBookmarked,
-  ensureNotBookmarked,
-  ensureLiked,
-  ensureNotLiked,
-  ensureReposted,
-  ensureNotReposted,
-  openProfileTab,
-  maybeUnfollowTarget,
-  maybeDeleteOwnPostByText,
-  openNotifications,
-  openSavedPosts,
-  verifyPublicHandleResolution,
-  verifyPublicAuthorFeed,
-  verifyPublicProfile,
-  verifyPublicProfileAfterEdit,
-  verifyLocalProfileAfterEdit,
-  editProfile,
-} = createSingleActions({
-  config,
-  summary,
-  page,
-  appBaseUrl,
-  wait,
-  sleep,
-  normalizeText,
-  buttonText,
-  fetchStatus,
-  pollJson,
-  avatarPngBase64: AVATAR_PNG_BASE64,
-});
+  const actions = createSingleActions({
+    config,
+    summary,
+    page,
+    appBaseUrl,
+    wait,
+    sleep,
+    normalizeText,
+    buttonText,
+    fetchStatus,
+    pollJson,
+    avatarPngBase64: AVATAR_PNG_BASE64,
+  });
 
   try {
     await runSingleScenario({
-    step,
-    config,
-    login,
-    completeAgeAssuranceIfNeeded,
-    composePost,
-    verifyPublicHandleResolution,
-    verifyPublicProfile,
-    verifyPublicAuthorFeed,
-    gotoProfile,
-    page,
-    findRowByPrimaryText,
-    ensureLiked,
-    ensureReposted,
-    clickQuote,
-    clickReply,
-    ensureNotLiked,
-    ensureNotReposted,
-    maybeFollowTarget,
-    findFirstFeedItem,
-    ensureBookmarked,
-    openSavedPosts,
-    ensureNotBookmarked,
-    maybeUnfollowTarget,
-    openNotifications,
-    editProfile,
-    verifyLocalProfileAfterEdit,
-    verifyPublicProfileAfterEdit,
-    openProfileTab,
-    maybeDeleteOwnPostByText,
+      step,
+      config,
+      page,
+      ...actions,
     });
   } catch (error) {
     summary.fatal = String(error?.message ?? error);

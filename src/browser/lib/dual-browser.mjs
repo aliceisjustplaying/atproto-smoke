@@ -4,10 +4,12 @@ import {
   attachPageLogging,
   buttonText,
   closeBrowserSafely,
+  createStepRunner,
   createProgressEmitter,
   finalizeSummary,
   launchBrowserWithFallback,
   normalizeText,
+  recordStep,
   sleep,
 } from './runtime-utils.mjs';
 import {
@@ -53,55 +55,18 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     return file;
   };
 
-  const recordStep = (name, status, extra = {}) => {
-    summary.steps.push({
-      name,
-      status,
-      at: new Date().toISOString(),
-      ...extra,
-    });
-  };
-
-  const step = async (name, fn, { optional = false, pageNames = [], timeoutMs } = {}) => {
-    const effectiveTimeoutMs = Number(timeoutMs || stepTimeoutMs);
-    emitProgress('start', name);
-    let timeoutId;
-    try {
-      const result = await Promise.race([
-        fn(),
-        new Promise((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error(`step timed out after ${effectiveTimeoutMs}ms`));
-          }, effectiveTimeoutMs);
-        }),
-      ]);
+  const step = createStepRunner({
+    summary,
+    emitProgress,
+    defaultTimeoutMs: stepTimeoutMs,
+    captureArtifacts: async ({ name, pageNames, failed }) => {
       const screenshots = {};
       for (const pageName of pageNames) {
-        screenshots[pageName] = await screenshot(pageName, name);
+        screenshots[pageName] = await screenshot(pageName, failed ? `${name}-error` : name).catch(() => undefined);
       }
-      recordStep(name, 'ok', { screenshots, ...(result ?? {}) });
-      emitProgress('ok', name);
-      return result;
-    } catch (error) {
-      const screenshots = {};
-      for (const pageName of pageNames) {
-        screenshots[pageName] = await screenshot(pageName, `${name}-error`).catch(() => undefined);
-      }
-      recordStep(name, optional ? 'skipped' : 'failed', {
-        screenshots,
-        error: String(error?.message ?? error),
-      });
-      emitProgress(optional ? 'skip' : 'fail', name, String(error?.message ?? error));
-      if (!optional) {
-        throw error;
-      }
-      return null;
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    }
-  };
+      return { screenshots };
+    },
+  });
 
   const wait = async (page, ms) => {
     await page.waitForTimeout(ms);

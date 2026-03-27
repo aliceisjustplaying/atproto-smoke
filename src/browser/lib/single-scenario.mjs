@@ -5,91 +5,9 @@ import {
   runSingleTargetInteractionPhase,
 } from './single-scenario/phases.mjs';
 
-export const runSingleScenario = async ({
-  step,
-  config,
-  login,
-  completeAgeAssuranceIfNeeded,
-  composePost,
-  verifyPublicHandleResolution,
-  verifyPublicProfile,
-  verifyPublicAuthorFeed,
-  gotoProfile,
-  page,
-  findRowByPrimaryText,
-  ensureLiked,
-  ensureReposted,
-  clickQuote,
-  clickReply,
-  ensureNotLiked,
-  ensureNotReposted,
-  maybeFollowTarget,
-  findFirstFeedItem,
-  ensureBookmarked,
-  openSavedPosts,
-  ensureNotBookmarked,
-  maybeUnfollowTarget,
-  openNotifications,
-  editProfile,
-  verifyLocalProfileAfterEdit,
-  verifyPublicProfileAfterEdit,
-  openProfileTab,
-  maybeDeleteOwnPostByText,
-}) => {
-  await runSingleBootstrapPhase({
-    step,
-    config,
-    login,
-    completeAgeAssuranceIfNeeded,
-    composePost,
-    verifyPublicHandleResolution,
-    verifyPublicProfile,
-    verifyPublicAuthorFeed,
-    gotoProfile,
-    page,
-    findRowByPrimaryText,
-    ensureLiked,
-    ensureReposted,
-    clickQuote,
-    clickReply,
-    ensureNotLiked,
-    ensureNotReposted,
-  });
-
-  await runSingleTargetInteractionPhase({
-    step,
-    config,
-    gotoProfile,
-    maybeFollowTarget,
-    findFirstFeedItem,
-    ensureBookmarked,
-    openSavedPosts,
-    page,
-    ensureLiked,
-    ensureReposted,
-    clickQuote,
-    clickReply,
-    ensureNotLiked,
-    ensureNotReposted,
-    ensureNotBookmarked,
-    maybeUnfollowTarget,
-    openNotifications,
-  });
-
-  await runSingleProfilePhase({
-    step,
-    config,
-    gotoProfile,
-    editProfile,
-    verifyLocalProfileAfterEdit,
-    verifyPublicProfileAfterEdit,
-  });
-
-  await runSingleCleanupPhase({
-    step,
-    config,
-    gotoProfile,
-    openProfileTab,
-    maybeDeleteOwnPostByText,
-  });
+export const runSingleScenario = async (ctx) => {
+  await runSingleBootstrapPhase(ctx);
+  await runSingleTargetInteractionPhase(ctx);
+  await runSingleProfilePhase(ctx);
+  await runSingleCleanupPhase(ctx);
 };

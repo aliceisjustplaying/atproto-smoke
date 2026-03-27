@@ -7,14 +7,13 @@ import { createListHelpers } from './lib/lists.mjs';
 import { createSettingsHelpers } from './lib/settings.mjs';
 import { runDualScenario } from './lib/dual-scenario.mjs';
 import { createDualActions } from './lib/dual-actions.mjs';
-import { AVATAR_PNG_BASE64, sleep } from './lib/runtime-utils.mjs';
+import { AVATAR_PNG_BASE64, createBaseSummary, sleep } from './lib/runtime-utils.mjs';
 
 export const runDualFromConfig = async (config) => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
   const appBaseUrl = config.appUrl.replace(/\/$/, '');
 
-  const summary = {
-    startedAt: new Date().toISOString(),
+  const summary = createBaseSummary({
     appUrl: config.appUrl,
     pdsUrl: config.pdsUrl,
     primaryPdsUrl: config.primary?.pdsUrl || config.pdsUrl,
@@ -24,14 +23,7 @@ export const runDualFromConfig = async (config) => {
     remoteReplyPostUrl: config.remoteReplyPostUrl,
     primaryHandle: config.primary?.handle,
     secondaryHandle: config.secondary?.handle,
-    steps: [],
-    console: [],
-    pageErrors: [],
-    requestFailures: [],
-    httpFailures: [],
-    xrpc: [],
-    notes: [],
-  };
+  });
 
   if (config.accountSource) {
     summary.notes.push(`account source: ${config.accountSource}`);
@@ -82,40 +74,7 @@ export const runDualFromConfig = async (config) => {
     startedAt: summary.startedAt,
   });
 
-  const {
-    login,
-    completeAgeAssuranceIfNeeded,
-    gotoProfile,
-    waitForProfileHandle,
-    verifyProfileCountsAfterReload,
-    readProfileCountsAfterReload,
-    composePost,
-    composePostWithImage,
-    editProfile,
-    verifyLocalProfileAfterEdit,
-    verifyPublicProfileAfterEdit,
-    findRowByPrimaryText,
-    ensureLiked,
-    ensureNotLiked,
-    ensureReposted,
-    ensureNotReposted,
-    ensureBookmarked,
-    ensureNotBookmarked,
-    clickQuote,
-    clickReply,
-    maybeFollow,
-    maybeUnfollow,
-    openNotifications,
-    openSavedPosts,
-    waitForNotificationsFeed,
-    ensureProfileMuted,
-    ensureProfileUnmuted,
-    blockProfile,
-    unblockProfile,
-    openReportPostDraft,
-    openProfileTab,
-    maybeDeleteOwnPostByText,
-  } = createDualActions({
+  const actions = createDualActions({
     config,
     summary,
     appBaseUrl,
@@ -131,61 +90,30 @@ export const runDualFromConfig = async (config) => {
 
   try {
     await runDualScenario({
-    config,
-    step,
-    primaryPage,
-    secondaryPage,
-    primary,
-    secondary,
-    login,
-    completeAgeAssuranceIfNeeded,
-    createSession,
-    cleanupStaleSmokeArtifacts,
-    composePost,
-    waitForOwnPostRecord,
-    gotoProfile,
-    waitForProfileHandle,
-    verifyProfileCountsAfterReload,
-    readProfileCountsAfterReload,
-    findRowByPrimaryText,
-    composePostWithImage,
-    editProfile,
-    verifyLocalProfileAfterEdit,
-    verifyPublicProfileAfterEdit,
-    createList,
-    waitForOwnListRecord,
-    recordRkey,
-    openListPage,
-    editCurrentList,
-    addUserToCurrentList,
-    waitForOwnListItemRecord,
-    removeUserFromCurrentList,
-    waitForNoOwnRecord,
-    deleteCurrentList,
-    maybeUnfollow,
-    maybeFollow,
-    waitForFollowRecord,
-    ensureLiked,
-    ensureBookmarked,
-    openSavedPosts,
-    ensureReposted,
-    clickQuote,
-    clickReply,
-    pollNotifications,
-    openNotifications,
-    waitForNotificationsFeed,
-    ensureProfileMuted,
-    ensureProfileUnmuted,
-    openReportPostDraft,
-    blockProfile,
-    unblockProfile,
-    setRadioSetting,
-    setCheckboxSetting,
-    ensureNotLiked,
-    ensureNotBookmarked,
-    ensureNotReposted,
-    openProfileTab,
-    maybeDeleteOwnPostByText,
+      config,
+      step,
+      primaryPage,
+      secondaryPage,
+      primary,
+      secondary,
+      createSession,
+      cleanupStaleSmokeArtifacts,
+      waitForOwnPostRecord,
+      waitForFollowRecord,
+      waitForNoOwnRecord,
+      waitForOwnListRecord,
+      waitForOwnListItemRecord,
+      recordRkey,
+      pollNotifications,
+      createList,
+      openListPage,
+      editCurrentList,
+      addUserToCurrentList,
+      removeUserFromCurrentList,
+      deleteCurrentList,
+      setRadioSetting,
+      setCheckboxSetting,
+      ...actions,
     });
   } catch (error) {
     summary.fatal = String(error?.message ?? error);
