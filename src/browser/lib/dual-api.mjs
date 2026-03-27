@@ -1,3 +1,8 @@
+import {
+  fetchJsonWithTimeout,
+  fetchStatusWithTimeout,
+} from './runtime-utils.mjs';
+
 export const createDualApiHelpers = ({ config }) => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const deriveHost = (pdsUrl) => {
@@ -8,50 +13,35 @@ export const createDualApiHelpers = ({ config }) => {
     }
   };
 
-  const fetchJson = async (url, options = {}) => {
-    const timeoutMs = options.timeoutMs ?? 30000;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const fetchOptions = {
-      ...options,
-      signal: controller.signal,
-    };
-    delete fetchOptions.timeoutMs;
-    let res;
-    try {
-      res = await fetch(url, fetchOptions);
-    } finally {
-      clearTimeout(timer);
-    }
-    const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    return { ok: res.ok, status: res.status, text, json };
-  };
+  const fetchJson = (url, options = {}) => fetchJsonWithTimeout(url, options);
 
-  const fetchStatus = async (url) => {
-    const res = await fetch(url, {
-      redirect: 'follow',
-    });
-    return { ok: res.ok, status: res.status, url: res.url };
+  const fetchStatus = (url, options = {}) => fetchStatusWithTimeout(url, options);
+
+  const collectionFromUri = (uri) => {
+    if (typeof uri !== 'string') {
+      return undefined;
+    }
+    const parts = uri.split('/');
+    return parts.length >= 4 ? parts[3] : undefined;
   };
 
   const normalizeRepoRecord = (record) => {
+    const innerValue = record?.value?.value;
+    const innerType = innerValue?.$type;
+    const expectedCollection = collectionFromUri(record?.uri);
     if (
       record &&
       record.value &&
       typeof record.value === 'object' &&
-      record.value.value &&
-      typeof record.value.value === 'object' &&
-      typeof record.value.value.$type === 'string'
+      typeof innerValue === 'object' &&
+      innerValue &&
+      record.value.$type === undefined &&
+      typeof innerType === 'string' &&
+      (!expectedCollection || innerType === expectedCollection)
     ) {
       return {
         ...record,
-        value: record.value.value,
+        value: innerValue,
       };
     }
     return record;
@@ -295,10 +285,7 @@ export const createDualApiHelpers = ({ config }) => {
     if (Array.isArray(account.cleanupPostPrefixes) && account.cleanupPostPrefixes.length) {
       return account.cleanupPostPrefixes;
     }
-    if (/secondary/i.test(account.postText || '')) {
-      return ['perlsky browser secondary '];
-    }
-    return ['perlsky browser smoke '];
+    return [account.postText].filter((value) => typeof value === 'string' && value.length > 0);
   };
 
   const staleListPrefixes = ['Smoke List ', 'Updated Smoke List '];

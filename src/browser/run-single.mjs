@@ -4,11 +4,19 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from './lib/playwright-runtime.mjs';
 import {
   attachPageLogging,
+  buttonText,
   closeBrowserSafely,
   createProgressEmitter,
+  fetchJsonWithTimeout,
+  fetchStatusWithTimeout,
   finalizeSummary,
   launchBrowserWithFallback,
 } from './lib/runtime-utils.mjs';
+import {
+  isIgnoredConsoleEntry,
+  isIgnoredHttpFailureEntry,
+  isIgnoredRequestFailureEntry,
+} from './lib/failure-rules.mjs';
 import { runSingleScenario } from './lib/single-scenario.mjs';
 import { createSingleActions } from './lib/single-actions.mjs';
 
@@ -33,32 +41,6 @@ export const runSingleFromConfig = async (config) => {
     notes: [],
   };
 
-  const ignoredConsole = [
-  /events\.bsky\.app\/.*ERR_BLOCKED_BY_CLIENT/i,
-  /slider-vertical/i,
-  /Password field is not contained in a form/i,
-];
-
-  const ignoredRequestFailure = [
-  { url: /events\.bsky\.app\//i, error: /ERR_(BLOCKED_BY_CLIENT|ABORTED)/i },
-  { url: /workers\.dev\/api\/config/i, error: /ERR_ABORTED/i },
-  { url: /app-config\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
-  { url: /live-events\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
-  { url: /cdn\.bsky\.app\/img\/avatar_thumbnail\//i, error: /ERR_ABORTED/i },
-  { url: /events\.bsky\.app\/t/i, error: /ERR_ABORTED/i },
-  { url: /events\.bsky\.app\/gb\/api\/features\//i, error: /ERR_ABORTED/i },
-  { url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts)/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/com\.atproto\.identity\.resolveHandle/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/app\.bsky\.graph\.getSuggestedFollowsByActor/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/chat\.bsky\.convo\.getConvoAvailability/i, error: /ERR_ABORTED/i },
-];
-
-  const ignoredHttpFailure = [
-  { url: /c\.1password\.com\/richicons/i, status: 404 },
-  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
-];
   const progressEnabled = config.progress !== false;
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
@@ -94,18 +76,9 @@ export const runSingleFromConfig = async (config) => {
 
   const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
 
-  const isIgnoredConsole = (entry) =>
-    ignoredConsole.some((pattern) => pattern.test(entry.text || ''));
-
-  const isIgnoredRequestFailure = (entry) =>
-    ignoredRequestFailure.some(
-      (rule) => rule.url.test(entry.url || '') && rule.error.test(entry.errorText || ''),
-    );
-
-  const isIgnoredHttpFailure = (entry) =>
-    ignoredHttpFailure.some(
-      (rule) => rule.url.test(entry.url || '') && (!rule.status || rule.status === entry.status),
-    );
+  const isIgnoredConsole = isIgnoredConsoleEntry;
+  const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
+  const isIgnoredHttpFailure = isIgnoredHttpFailureEntry;
 
   const step = async (name, fn, { optional = false } = {}) => {
   emitProgress('start', name);
@@ -132,32 +105,22 @@ export const runSingleFromConfig = async (config) => {
   const wait = (ms) => page.waitForTimeout(ms);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const fetchJson = async (url) => {
-  const res = await fetch(url, {
-    headers: { accept: 'application/json' },
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-  return { ok: res.ok, status: res.status, text, json };
-  };
+  const fetchJson = async (url, timeoutMs = 30000) =>
+    fetchJsonWithTimeout(url, {
+      headers: { accept: 'application/json' },
+      timeoutMs,
+    });
 
-  const fetchStatus = async (url) => {
-  const res = await fetch(url, {
-    redirect: 'follow',
-  });
-  return { ok: res.ok, status: res.status, url: res.url };
-  };
+  const fetchStatus = async (url, timeoutMs = 30000) =>
+    fetchStatusWithTimeout(url, {
+      timeoutMs,
+    });
 
   const pollJson = async (name, buildUrl, predicate, timeoutMs) => {
   const started = Date.now();
   let last;
   while (Date.now() - started < timeoutMs) {
-    last = await fetchJson(buildUrl());
+    last = await fetchJson(buildUrl(), Math.min(timeoutMs, 30000));
     if (predicate(last)) {
       return last;
     }

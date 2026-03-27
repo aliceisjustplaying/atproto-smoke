@@ -32,6 +32,56 @@ export const buildBrowserLaunchCandidates = async (config) => {
   return candidates;
 };
 
+export const fetchJsonWithTimeout = async (url, options = {}) => {
+  const timeoutMs = options.timeoutMs ?? 30000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const fetchOptions = {
+    ...options,
+    signal: controller.signal,
+  };
+  delete fetchOptions.timeoutMs;
+  let res;
+  try {
+    res = await fetch(url, fetchOptions);
+  } finally {
+    clearTimeout(timer);
+  }
+  const text = await res.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  return { ok: res.ok, status: res.status, text, json };
+};
+
+export const fetchStatusWithTimeout = async (url, options = {}) => {
+  const timeoutMs = options.timeoutMs ?? 30000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      redirect: options.redirect || 'follow',
+      signal: controller.signal,
+    });
+    return { ok: res.ok, status: res.status, url: res.url };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+export const buttonText = async (locator) => {
+  const label = await locator.getAttribute('aria-label');
+  if (label && label.trim()) {
+    return label.trim();
+  }
+  const text = await locator.innerText().catch(() => '');
+  return text.trim();
+};
+
 export const launchBrowserWithFallback = async ({ chromium, config, summary }) => {
   const errors = [];
   for (const candidate of await buildBrowserLaunchCandidates(config)) {

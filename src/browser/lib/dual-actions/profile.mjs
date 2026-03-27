@@ -77,7 +77,7 @@ export const createDualProfileActions = ({
 
   const waitForProfileHandle = async (page, handle, timeout = 20000) => {
     const shortHandle = handle.replace(/^@/, '');
-    const handleText = shortHandle.startsWith('@') ? shortHandle : `@${shortHandle}`;
+    const handleText = `@${shortHandle}`;
     await page.getByText(handleText).first().waitFor({ state: 'visible', timeout });
   };
 
@@ -127,8 +127,6 @@ export const createDualProfileActions = ({
     let lastApi;
     while (Date.now() - started < timeoutMs) {
       await gotoProfile(page, profileHandle);
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
-      await wait(page, 3000);
       await waitForProfileHandle(page, profileHandle);
       lastRendered = await readRenderedProfileCounts(page);
       const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
@@ -165,8 +163,6 @@ export const createDualProfileActions = ({
     while (Date.now() - started < timeoutMs) {
       try {
         await gotoProfile(page, profileHandle);
-        await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
-        await wait(page, 3000);
         await waitForProfileHandle(page, profileHandle);
         const rendered = await readRenderedProfileCounts(page);
         const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
@@ -382,6 +378,5 @@ export const createDualProfileActions = ({
     editProfile,
     verifyLocalProfileAfterEdit,
     verifyPublicProfileAfterEdit,
-    openListProfile: gotoProfile,
   };
 };

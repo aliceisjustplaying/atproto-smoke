@@ -2,41 +2,17 @@ import path from 'node:path';
 import { chromium } from './playwright-runtime.mjs';
 import {
   attachPageLogging,
+  buttonText,
   closeBrowserSafely,
   createProgressEmitter,
   finalizeSummary,
   launchBrowserWithFallback,
 } from './runtime-utils.mjs';
-
-const ignoredConsole = [
-  /events\.bsky\.app\/.*ERR_BLOCKED_BY_CLIENT/i,
-  /slider-vertical/i,
-  /Password field is not contained in a form/i,
-  /Failed to load resource: the server responded with a status of 400 \(\)/i,
-];
-
-const ignoredRequestFailure = [
-  { url: /events\.bsky\.app\//i, error: /ERR_(BLOCKED_BY_CLIENT|ABORTED)/i },
-  { url: /workers\.dev\/api\/config/i, error: /ERR_ABORTED/i },
-  { url: /app-config\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
-  { url: /live-events\.workers\.bsky\.app\/config/i, error: /ERR_ABORTED/i },
-  { url: /cdn\.bsky\.app\/img\/avatar_thumbnail\//i, error: /ERR_ABORTED/i },
-  { url: /events\.bsky\.app\/t/i, error: /ERR_ABORTED/i },
-  { url: /events\.bsky\.app\/gb\/api\/features\//i, error: /ERR_ABORTED/i },
-  { url: /(?:video\.bsky\.app\/watch|video\.cdn\.bsky\.app\/hls)\/.*\/(?:(?:playlist|video)\.m3u8|.*\.ts|.*\.vtt)/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/chat\.bsky\.convo\.getLog/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/app\.bsky\.graph\.(?:muteActor|unmuteActor)/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/com\.atproto\.identity\.resolveHandle/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/app\.bsky\.graph\.getSuggestedFollowsByActor/i, error: /ERR_ABORTED/i },
-  { url: /\/xrpc\/chat\.bsky\.convo\.getConvoAvailability/i, error: /ERR_ABORTED/i },
-];
-
-const ignoredHttpFailure = [
-  { url: /c\.1password\.com\/richicons/i, status: 404 },
-  { url: /\/xrpc\/app\.bsky\.graph\.getList\?/, status: 400 },
-  { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
-];
+import {
+  isIgnoredConsoleEntry,
+  isIgnoredHttpFailureEntry,
+  isIgnoredRequestFailureEntry,
+} from './failure-rules.mjs';
 
 export const setupDualBrowser = async ({ config, summary }) => {
   const browser = await launchBrowserWithFallback({ chromium, config, summary });
@@ -86,18 +62,9 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
 
   const normalizeText = (text) => (text || '').replace(/\s+/g, ' ').trim();
 
-  const isIgnoredConsole = (entry) =>
-    ignoredConsole.some((pattern) => pattern.test(entry.text || ''));
-
-  const isIgnoredRequestFailure = (entry) =>
-    ignoredRequestFailure.some(
-      (rule) => rule.url.test(entry.url || '') && rule.error.test(entry.errorText || ''),
-    );
-
-  const isIgnoredHttpFailure = (entry) =>
-    ignoredHttpFailure.some(
-      (rule) => rule.url.test(entry.url || '') && (!rule.status || rule.status === entry.status),
-    );
+  const isIgnoredConsole = isIgnoredConsoleEntry;
+  const isIgnoredRequestFailure = isIgnoredRequestFailureEntry;
+  const isIgnoredHttpFailure = isIgnoredHttpFailureEntry;
 
   const step = async (name, fn, { optional = false, pageNames = [], timeoutMs } = {}) => {
     const effectiveTimeoutMs = Number(timeoutMs || stepTimeoutMs);
@@ -145,15 +112,6 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
   };
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const buttonText = async (locator) => {
-    const label = await locator.getAttribute('aria-label');
-    if (label && label.trim()) {
-      return label.trim();
-    }
-    const text = await locator.innerText().catch(() => '');
-    return text.trim();
-  };
 
   const dismissBlockingOverlays = async (page) => {
     const backdrop = page.locator('[aria-label*="click to close"]').last();
