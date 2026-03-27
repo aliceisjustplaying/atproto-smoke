@@ -5,17 +5,36 @@ export interface RepoRecord extends FlexibleRecord {
   value?: FlexibleRecord;
 }
 
-export interface AccountConfig extends FlexibleRecord {
+export interface RenderedProfileCountsRaw {
+  followersText?: string;
+  followsText?: string;
+}
+
+export interface RenderedProfileCounts {
+  followersCount: number;
+  followsCount: number;
+  raw: RenderedProfileCountsRaw;
+}
+
+export interface ProfileCountsSnapshot {
+  rendered: RenderedProfileCounts;
+  api: {
+    followersCount?: number;
+    followsCount?: number;
+  };
+}
+
+export interface AccountConfig {
   handle: string;
   password: string;
   birthdate: string;
   cleanupPostPrefixes: string[];
   loginIdentifier?: string;
-  postText?: string;
-  mediaPostText?: string;
-  quoteText?: string;
-  replyText?: string;
-  profileNote?: string;
+  postText: string;
+  mediaPostText: string;
+  quoteText: string;
+  replyText: string;
+  profileNote: string;
   did?: string;
   email?: string;
   pdsUrl?: string;
@@ -32,10 +51,30 @@ export interface AccountConfig extends FlexibleRecord {
   quotePost?: RepoRecord;
   replyPost?: RepoRecord;
   listRecord?: RepoRecord;
-  baselineCounts?: FlexibleRecord;
+  listItemRecord?: RepoRecord;
+  remoteReplyPost?: RepoRecord;
+  remoteReplyWasFollowingTarget?: boolean;
+  session?: FlexibleRecord;
+  baselineCounts?: ProfileCountsSnapshot;
 }
 
-export interface SuiteConfig extends FlexibleRecord {
+export interface RuntimeDualAccount extends AccountConfig {
+  did: string;
+  accessJwt: string;
+  shortHandle: string;
+  listName: string;
+  listDescription: string;
+  listUpdatedName: string;
+  listUpdatedDescription: string;
+  session: SessionInfo;
+}
+
+export interface SessionInfo extends FlexibleRecord {
+  accessJwt: string;
+  did: string;
+}
+
+export interface SuiteConfig {
   pdsUrl: string;
   pdsHost: string;
   artifactsDir: string;
@@ -65,15 +104,16 @@ export interface DualRunConfig extends SuiteConfig {
   accountSource?: string;
 }
 
-export interface ExampleBaseConfig extends FlexibleRecord {
+export interface ExampleBaseConfig {
   pdsUrl: string;
   targetHandle: string;
   strictErrors: boolean;
   primaryHandle: string;
   secondaryHandle: string;
+  remoteReplyPostUrl?: string;
 }
 
-export interface Adapter extends FlexibleRecord {
+export interface Adapter {
   name: string;
   description: string;
   accountStrategy: string;
@@ -93,43 +133,82 @@ export interface ParsedCliArgs {
   jsonOnly?: boolean;
 }
 
-export interface SummaryStep extends FlexibleRecord {
+export interface SummaryStep {
   name: string;
   status: string;
   at: string;
+  error?: string;
+  note?: string;
+  rowFound?: boolean;
+  rowTestId?: string | null;
+  screenshot?: string;
+  screenshots?: Record<string, string | undefined>;
 }
 
-export interface SummaryUnexpected extends FlexibleRecord {
-  console: FlexibleRecord[];
-  requestFailures: FlexibleRecord[];
-  httpFailures: FlexibleRecord[];
-  pageErrors: FlexibleRecord[];
+export interface ConsoleEntry {
+  page?: string;
+  type: string;
+  text: string;
+}
+
+export interface PageErrorEntry {
+  page?: string;
+  message: string;
+  stack?: string;
+}
+
+export interface RequestFailureEntry {
+  page?: string;
+  url: string;
+  method: string;
+  errorText: string;
+}
+
+export interface HttpFailureEntry {
+  page?: string;
+  url: string;
+  status: number;
+  method: string;
+}
+
+export interface XrpcEntry {
+  page?: string;
+  url: string;
+  status: number;
+  method: string;
+}
+
+export interface SummaryUnexpected {
+  console: ConsoleEntry[];
+  requestFailures: RequestFailureEntry[];
+  httpFailures: HttpFailureEntry[];
+  pageErrors: PageErrorEntry[];
   total?: number;
 }
 
-export interface Summary extends FlexibleRecord {
+export interface Summary {
   startedAt: string;
   finishedAt?: string;
   steps: SummaryStep[];
-  console: FlexibleRecord[];
-  pageErrors: FlexibleRecord[];
-  requestFailures: FlexibleRecord[];
-  httpFailures: FlexibleRecord[];
-  xrpc: FlexibleRecord[];
+  console: ConsoleEntry[];
+  pageErrors: PageErrorEntry[];
+  requestFailures: RequestFailureEntry[];
+  httpFailures: HttpFailureEntry[];
+  xrpc: XrpcEntry[];
   notes: string[];
   unexpected?: SummaryUnexpected;
   fatal?: string;
   ok?: boolean;
 }
 
-export interface FetchJsonResult extends FlexibleRecord {
+export interface FetchJsonResult {
   ok: boolean;
   status: number;
   text: string;
   json: FlexibleRecord | FlexibleRecord[] | null;
 }
 
-export interface FetchStatusResult extends FlexibleRecord {
+export interface FetchStatusResult {
   ok: boolean;
   status: number;
   url: string;

@@ -1,9 +1,16 @@
-const remoteReplyHandleFromUrl = (postUrl) => {
+import type { DualScenarioContext } from "../browser-types.js";
+import { getRecordValue, getString, isRecord } from "../../../guards.js";
+
+const remoteReplyHandleFromUrl = (
+  postUrl: string | undefined,
+): string | undefined => {
   const match = postUrl?.match(/\/profile\/([^/]+)\/post\//);
   return match ? decodeURIComponent(match[1]) : undefined;
 };
 
-export const runDualSetupPhase = async (ctx) => {
+export const runDualSetupPhase = async (
+  ctx: DualScenarioContext,
+): Promise<void> => {
   const {
     config,
     step,
@@ -80,7 +87,7 @@ export const runDualSetupPhase = async (ctx) => {
     async () => {
       await gotoProfile(primaryPage, secondary.handle);
       await waitForProfileHandle(primaryPage, secondary.handle);
-      return maybeUnfollow(primaryPage);
+      return await maybeUnfollow(primaryPage);
     },
     { optional: true, pageNames: ["primary"] },
   );
@@ -90,7 +97,7 @@ export const runDualSetupPhase = async (ctx) => {
     async () => {
       await gotoProfile(secondaryPage, primary.handle);
       await waitForProfileHandle(secondaryPage, primary.handle);
-      return maybeUnfollow(secondaryPage);
+      return await maybeUnfollow(secondaryPage);
     },
     { optional: true, pageNames: ["secondary"] },
   );
@@ -154,20 +161,23 @@ export const runDualSetupPhase = async (ctx) => {
       primary,
       primary.mediaPostText,
     );
-    const embed = primary.imagePost.value?.embed;
+    const embed = getRecordValue(primary.imagePost.value, "embed");
+    const images = Array.isArray(embed?.images)
+      ? embed.images.filter(isRecord)
+      : [];
     if (
-      embed?.$type !== "app.bsky.embed.images" ||
-      !Array.isArray(embed.images) ||
-      embed.images.length < 1
+      getString(embed, "$type") !== "app.bsky.embed.images" ||
+      images.length < 1
     ) {
       throw new Error(
         "image post did not persist an app.bsky.embed.images record",
       );
     }
+    const firstImage = getRecordValue(images[0], "image");
     return {
       uri: primary.imagePost.uri,
-      imageCount: embed.images.length,
-      mimeType: embed.images[0]?.image?.mimeType,
+      imageCount: images.length,
+      mimeType: getString(firstImage, "mimeType"),
     };
   });
 
@@ -231,10 +241,7 @@ export const runDualSetupPhase = async (ctx) => {
     "primary-public-profile-after-edit",
     () => verifyPublicProfileAfterEdit(primary),
     {
-      timeoutMs: Math.max(
-        Number(config.publicCheckTimeoutMs || 180000) + 15000,
-        195000,
-      ),
+      timeoutMs: Math.max(config.publicCheckTimeoutMs + 15000, 195000),
     },
   );
 
@@ -253,10 +260,7 @@ export const runDualSetupPhase = async (ctx) => {
     "secondary-public-profile-after-edit",
     () => verifyPublicProfileAfterEdit(secondary),
     {
-      timeoutMs: Math.max(
-        Number(config.publicCheckTimeoutMs || 180000) + 15000,
-        195000,
-      ),
+      timeoutMs: Math.max(config.publicCheckTimeoutMs + 15000, 195000),
     },
   );
 
@@ -297,21 +301,27 @@ export const runDualSetupPhase = async (ctx) => {
   await step("primary-list-record", async () => {
     primary.listRecord = await waitForOwnListRecord(primary, primary.listName);
     primary.listRkey = recordRkey(primary.listRecord);
+    if (primary.listRkey === undefined) {
+      throw new Error("list record rkey missing after create");
+    }
     if (primary.listRecord.value?.description !== primary.listDescription) {
       throw new Error("list record description did not match after create");
     }
     return {
       uri: primary.listRecord.uri,
       rkey: primary.listRkey,
-      description: primary.listRecord.value?.description,
+      description: getString(primary.listRecord.value, "description"),
     };
   });
 
   await step(
     "primary-edit-list",
     async () => {
+      if (primary.listRkey === undefined) {
+        throw new Error("list rkey missing before list edit");
+      }
       await openListPage(primaryPage, primary.handle, primary.listRkey);
-      return editCurrentList(
+      return await editCurrentList(
         primaryPage,
         primary.listUpdatedName,
         primary.listUpdatedDescription,
@@ -326,6 +336,9 @@ export const runDualSetupPhase = async (ctx) => {
       primary.listUpdatedName,
     );
     primary.listRkey = recordRkey(primary.listRecord);
+    if (primary.listRkey === undefined) {
+      throw new Error("list record rkey missing after edit");
+    }
     if (
       primary.listRecord.value?.description !== primary.listUpdatedDescription
     ) {
@@ -334,23 +347,33 @@ export const runDualSetupPhase = async (ctx) => {
     return {
       uri: primary.listRecord.uri,
       rkey: primary.listRkey,
-      description: primary.listRecord.value?.description,
+      description: getString(primary.listRecord.value, "description"),
     };
   });
 
   await step(
     "primary-list-add-secondary-member",
     async () => {
+      if (primary.listRkey === undefined) {
+        throw new Error("list rkey missing before list member add");
+      }
       await openListPage(primaryPage, primary.handle, primary.listRkey);
-      return addUserToCurrentList(primaryPage, secondary.handle);
+      return await addUserToCurrentList(primaryPage, secondary.handle);
     },
     { pageNames: ["primary"] },
   );
 
   await step("primary-list-member-record", async () => {
+    if (primary.listRecord === undefined) {
+      throw new Error("list record missing before list member add");
+    }
+    const listUri = primary.listRecord.uri;
+    if (listUri === undefined) {
+      throw new Error("list record uri missing before list member add");
+    }
     primary.listItemRecord = await waitForOwnListItemRecord(
       primary,
-      primary.listRecord.uri,
+      listUri,
       secondary.did,
     );
     return {
@@ -362,28 +385,41 @@ export const runDualSetupPhase = async (ctx) => {
   await step(
     "primary-list-remove-secondary-member",
     async () => {
+      if (primary.listRkey === undefined) {
+        throw new Error("list rkey missing before list member remove");
+      }
       await openListPage(primaryPage, primary.handle, primary.listRkey);
-      return removeUserFromCurrentList(primaryPage, secondary.handle);
+      return await removeUserFromCurrentList(primaryPage, secondary.handle);
     },
     { pageNames: ["primary"] },
   );
 
   await step("primary-list-member-record-removed", async () => {
+    if (primary.listRecord === undefined) {
+      throw new Error("list record missing before list member cleanup");
+    }
+    const listUri = primary.listRecord.uri;
+    if (listUri === undefined) {
+      throw new Error("list record uri missing before list member cleanup");
+    }
     await waitForNoOwnRecord(
       primary,
       "app.bsky.graph.listitem",
       (record) =>
-        record?.value?.list === primary.listRecord.uri &&
-        record?.value?.subject === secondary.did,
+        record.value?.list === listUri &&
+        getString(record.value, "subject") === secondary.did,
     );
-    return { listUri: primary.listRecord.uri, subject: secondary.did };
+    return { listUri, subject: secondary.did };
   });
 
   await step(
     "primary-delete-list",
     async () => {
+      if (primary.listRkey === undefined) {
+        throw new Error("list rkey missing before delete");
+      }
       await openListPage(primaryPage, primary.handle, primary.listRkey);
-      return deleteCurrentList(primaryPage);
+      return await deleteCurrentList(primaryPage);
     },
     { pageNames: ["primary"] },
   );
@@ -398,7 +434,9 @@ export const runDualSetupPhase = async (ctx) => {
   });
 };
 
-export const runDualPrimaryWavePhase = async (ctx) => {
+export const runDualPrimaryWavePhase = async (
+  ctx: DualScenarioContext,
+): Promise<void> => {
   const {
     config,
     step,
@@ -461,7 +499,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         primary,
         primary.handle,
         {
-          followsCount: (primary.baselineCounts?.api?.followsCount ?? 0) + 1,
+          followsCount: (primary.baselineCounts?.api.followsCount ?? 0) + 1,
         },
       );
     },
@@ -477,7 +515,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         secondary.handle,
         {
           followersCount:
-            (secondary.baselineCounts?.api?.followersCount ?? 0) + 1,
+            (secondary.baselineCounts?.api.followersCount ?? 0) + 1,
         },
       );
     },
@@ -493,7 +531,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureLiked(primaryPage, row);
+      return await ensureLiked(primaryPage, row);
     },
     { pageNames: ["primary"] },
   );
@@ -507,7 +545,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureBookmarked(primaryPage, row);
+      return await ensureBookmarked(primaryPage, row);
     },
     { pageNames: ["primary"] },
   );
@@ -537,7 +575,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureReposted(primaryPage, row);
+      return await ensureReposted(primaryPage, row);
     },
     { pageNames: ["primary"] },
   );
@@ -580,13 +618,12 @@ export const runDualPrimaryWavePhase = async (ctx) => {
     { pageNames: ["primary"] },
   );
 
-  if (config.remoteReplyPostUrl) {
+  if (config.remoteReplyPostUrl !== undefined) {
     const remoteReplyText = `${primary.replyText} remote`;
-    const remoteReplyHandle = remoteReplyHandleFromUrl(
-      config.remoteReplyPostUrl,
-    );
+    const remoteReplyPostUrl = config.remoteReplyPostUrl;
+    const remoteReplyHandle = remoteReplyHandleFromUrl(remoteReplyPostUrl);
 
-    if (remoteReplyHandle) {
+    if (remoteReplyHandle !== undefined) {
       await step(
         "primary-prepare-configured-remote-reply-target",
         async () => {
@@ -613,7 +650,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
     await step(
       "primary-reply-configured-remote-post",
       async () => {
-        await primaryPage.goto(config.remoteReplyPostUrl, {
+        await primaryPage.goto(remoteReplyPostUrl, {
           waitUntil: "domcontentloaded",
           timeout: 60000,
         });
@@ -629,7 +666,7 @@ export const runDualPrimaryWavePhase = async (ctx) => {
         return {
           replyText: remoteReplyText,
           uri: primary.remoteReplyPost.uri,
-          remoteReplyPostUrl: config.remoteReplyPostUrl,
+          remoteReplyPostUrl,
           remoteReplyHandle,
         };
       },
@@ -665,7 +702,9 @@ export const runDualPrimaryWavePhase = async (ctx) => {
   );
 };
 
-export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
+export const runDualSecondaryWaveAndSettingsPhase = async (
+  ctx: DualScenarioContext,
+): Promise<void> => {
   const {
     step,
     primaryPage,
@@ -728,8 +767,8 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
         secondary.handle,
         {
           followersCount:
-            (secondary.baselineCounts?.api?.followersCount ?? 0) + 1,
-          followsCount: (secondary.baselineCounts?.api?.followsCount ?? 0) + 1,
+            (secondary.baselineCounts?.api.followersCount ?? 0) + 1,
+          followsCount: (secondary.baselineCounts?.api.followsCount ?? 0) + 1,
         },
       );
     },
@@ -744,9 +783,8 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
         primary,
         primary.handle,
         {
-          followersCount:
-            (primary.baselineCounts?.api?.followersCount ?? 0) + 1,
-          followsCount: (primary.baselineCounts?.api?.followsCount ?? 0) + 1,
+          followersCount: (primary.baselineCounts?.api.followersCount ?? 0) + 1,
+          followsCount: (primary.baselineCounts?.api.followsCount ?? 0) + 1,
         },
       );
     },
@@ -789,7 +827,7 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
     "primary-mute-secondary",
     async () => {
       await gotoProfile(primaryPage, secondary.handle);
-      return ensureProfileMuted(primaryPage);
+      return await ensureProfileMuted(primaryPage);
     },
     { pageNames: ["primary"] },
   );
@@ -798,7 +836,7 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
     "primary-unmute-secondary",
     async () => {
       await gotoProfile(primaryPage, secondary.handle);
-      return ensureProfileUnmuted(primaryPage);
+      return await ensureProfileUnmuted(primaryPage);
     },
     { pageNames: ["primary"] },
   );
@@ -812,7 +850,7 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
         primary.postText,
         60000,
       );
-      return openReportPostDraft(secondaryPage, row);
+      return await openReportPostDraft(secondaryPage, row);
     },
     { pageNames: ["secondary"] },
   );
@@ -821,7 +859,7 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
     "secondary-block-primary",
     async () => {
       await gotoProfile(secondaryPage, primary.handle);
-      return blockProfile(secondaryPage);
+      return await blockProfile(secondaryPage);
     },
     { pageNames: ["secondary"] },
   );
@@ -1013,7 +1051,9 @@ export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
   );
 };
 
-export const runDualCleanupPhase = async (ctx) => {
+export const runDualCleanupPhase = async (
+  ctx: DualScenarioContext,
+): Promise<void> => {
   const {
     config,
     step,
@@ -1042,7 +1082,7 @@ export const runDualCleanupPhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureNotLiked(primaryPage, row);
+      return await ensureNotLiked(primaryPage, row);
     },
     { optional: true, pageNames: ["primary"] },
   );
@@ -1056,7 +1096,7 @@ export const runDualCleanupPhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureNotBookmarked(primaryPage, row);
+      return await ensureNotBookmarked(primaryPage, row);
     },
     { optional: true, pageNames: ["primary"] },
   );
@@ -1070,7 +1110,7 @@ export const runDualCleanupPhase = async (ctx) => {
         secondary.postText,
         60000,
       );
-      return ensureNotReposted(primaryPage, row);
+      return await ensureNotReposted(primaryPage, row);
     },
     { optional: true, pageNames: ["primary"] },
   );
@@ -1079,7 +1119,7 @@ export const runDualCleanupPhase = async (ctx) => {
     "primary-cleanup-unfollow-secondary",
     async () => {
       await gotoProfile(primaryPage, secondary.handle);
-      return maybeUnfollow(primaryPage);
+      return await maybeUnfollow(primaryPage);
     },
     { optional: true, pageNames: ["primary"] },
   );
@@ -1088,25 +1128,25 @@ export const runDualCleanupPhase = async (ctx) => {
     "secondary-cleanup-unfollow-primary",
     async () => {
       await gotoProfile(secondaryPage, primary.handle);
-      return maybeUnfollow(secondaryPage);
+      return await maybeUnfollow(secondaryPage);
     },
     { optional: true, pageNames: ["secondary"] },
   );
 
   if (
-    config.remoteReplyPostUrl &&
+    config.remoteReplyPostUrl !== undefined &&
     primary.remoteReplyWasFollowingTarget === false
   ) {
     const remoteReplyHandle = remoteReplyHandleFromUrl(
       config.remoteReplyPostUrl,
     );
-    if (remoteReplyHandle) {
+    if (remoteReplyHandle !== undefined) {
       await step(
         "primary-cleanup-remote-reply-target-follow",
         async () => {
           await gotoProfile(primaryPage, remoteReplyHandle);
           await waitForProfileHandle(primaryPage, remoteReplyHandle);
-          return maybeUnfollow(primaryPage);
+          return await maybeUnfollow(primaryPage);
         },
         { optional: true, pageNames: ["primary"] },
       );
@@ -1121,8 +1161,8 @@ export const runDualCleanupPhase = async (ctx) => {
         primary,
         primary.handle,
         {
-          followersCount: primary.baselineCounts?.api?.followersCount ?? 0,
-          followsCount: primary.baselineCounts?.api?.followsCount ?? 0,
+          followersCount: primary.baselineCounts?.api.followersCount ?? 0,
+          followsCount: primary.baselineCounts?.api.followsCount ?? 0,
         },
       );
     },
@@ -1137,8 +1177,8 @@ export const runDualCleanupPhase = async (ctx) => {
         secondary,
         secondary.handle,
         {
-          followersCount: secondary.baselineCounts?.api?.followersCount ?? 0,
-          followsCount: secondary.baselineCounts?.api?.followsCount ?? 0,
+          followersCount: secondary.baselineCounts?.api.followersCount ?? 0,
+          followsCount: secondary.baselineCounts?.api.followsCount ?? 0,
         },
       );
     },
@@ -1150,7 +1190,7 @@ export const runDualCleanupPhase = async (ctx) => {
     async () => {
       await gotoProfile(primaryPage, primary.handle);
       await openProfileTab(primaryPage, "Posts");
-      return maybeDeleteOwnPostByText(
+      return await maybeDeleteOwnPostByText(
         primaryPage,
         primary.quoteText,
         "deleted quote post",
@@ -1164,7 +1204,7 @@ export const runDualCleanupPhase = async (ctx) => {
     async () => {
       await gotoProfile(primaryPage, primary.handle);
       await openProfileTab(primaryPage, "Posts");
-      return maybeDeleteOwnPostByText(
+      return await maybeDeleteOwnPostByText(
         primaryPage,
         primary.mediaPostText,
         "deleted image post",
@@ -1178,7 +1218,7 @@ export const runDualCleanupPhase = async (ctx) => {
     async () => {
       await gotoProfile(primaryPage, primary.handle);
       await openProfileTab(primaryPage, "Replies");
-      return maybeDeleteOwnPostByText(
+      return await maybeDeleteOwnPostByText(
         primaryPage,
         primary.replyText,
         "deleted reply post",
@@ -1187,13 +1227,13 @@ export const runDualCleanupPhase = async (ctx) => {
     { optional: true, pageNames: ["primary"] },
   );
 
-  if (config.remoteReplyPostUrl) {
+  if (config.remoteReplyPostUrl !== undefined) {
     await step(
       "primary-cleanup-delete-remote-reply",
       async () => {
         await gotoProfile(primaryPage, primary.handle);
         await openProfileTab(primaryPage, "Replies");
-        return maybeDeleteOwnPostByText(
+        return await maybeDeleteOwnPostByText(
           primaryPage,
           `${primary.replyText} remote`,
           "deleted remote reply post",
@@ -1208,7 +1248,7 @@ export const runDualCleanupPhase = async (ctx) => {
     async () => {
       await gotoProfile(secondaryPage, secondary.handle);
       await openProfileTab(secondaryPage, "Posts");
-      return maybeDeleteOwnPostByText(
+      return await maybeDeleteOwnPostByText(
         secondaryPage,
         secondary.postText,
         "deleted root post",
@@ -1222,7 +1262,7 @@ export const runDualCleanupPhase = async (ctx) => {
     async () => {
       await gotoProfile(primaryPage, primary.handle);
       await openProfileTab(primaryPage, "Posts");
-      return maybeDeleteOwnPostByText(
+      return await maybeDeleteOwnPostByText(
         primaryPage,
         primary.postText,
         "deleted root post",

@@ -1,10 +1,17 @@
+import type { Locator, Page } from "playwright";
+import type {
+  PageFeedActions,
+  PageFeedActionsOptions,
+  PublishComposerOptions,
+} from "./browser-types.js";
+
 export const createPageFeedActions = ({
   wait,
   normalizeText,
   buttonText,
   dismissBlockingOverlays,
-}) => {
-  const composePost = async (page, text) => {
+}: PageFeedActionsOptions): PageFeedActions => {
+  const composePost = async (page: Page, text: string): Promise<void> => {
     await page
       .locator('[aria-label="Compose new post"]')
       .last()
@@ -20,7 +27,11 @@ export const createPageFeedActions = ({
     await wait(page, 4000);
   };
 
-  const findRowByPrimaryText = async (page, needle, timeout = 60000) => {
+  const findRowByPrimaryText = async (
+    page: Page,
+    needle: string,
+    timeout = 60000,
+  ): Promise<Locator> => {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const rows = page.locator('[data-testid^="feedItem-by-"]');
@@ -42,7 +53,11 @@ export const createPageFeedActions = ({
     throw new Error(`feed item with primary text not found: ${needle}`);
   };
 
-  const maybeFindRowByPrimaryText = async (page, needle, timeout = 10000) => {
+  const maybeFindRowByPrimaryText = async (
+    page: Page,
+    needle: string,
+    timeout = 10000,
+  ): Promise<Locator | null> => {
     try {
       return await findRowByPrimaryText(page, needle, timeout);
     } catch {
@@ -50,7 +65,10 @@ export const createPageFeedActions = ({
     }
   };
 
-  const findFirstFeedItem = async (page, timeout = 20000) => {
+  const findFirstFeedItem = async (
+    page: Page,
+    timeout = 20000,
+  ): Promise<Locator> => {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const rows = page.locator('[data-testid^="feedItem-by-"]');
@@ -65,13 +83,17 @@ export const createPageFeedActions = ({
     throw new Error("feed item not found");
   };
 
-  const clickLike = async (page, row) => {
+  const clickLike = async (page: Page, row: Locator): Promise<void> => {
     const btn = row.getByTestId("likeBtn").first();
     await btn.click({ noWaitAfter: true });
     await wait(page, 1500);
   };
 
-  const clickRepost = async (page, row, actionPattern = /^Repost$/i) => {
+  const clickRepost = async (
+    page: Page,
+    row: Locator,
+    actionPattern = /^Repost$/i,
+  ): Promise<void> => {
     await dismissBlockingOverlays(page);
     const btn = row.getByTestId("repostBtn").first();
     await btn.click({ noWaitAfter: true });
@@ -86,7 +108,10 @@ export const createPageFeedActions = ({
     await wait(page, 1500);
   };
 
-  const ensureLiked = async (page, row) => {
+  const ensureLiked = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("likeBtn").first();
     const before = await buttonText(btn);
     if (/unlike/i.test(before)) {
@@ -96,7 +121,10 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const ensureNotLiked = async (page, row) => {
+  const ensureNotLiked = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("likeBtn").first();
     const before = await buttonText(btn);
     if (!/unlike/i.test(before)) {
@@ -106,7 +134,10 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const ensureReposted = async (page, row) => {
+  const ensureReposted = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("repostBtn").first();
     const before = await buttonText(btn);
     if (/undo repost|remove repost/i.test(before)) {
@@ -116,7 +147,10 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const ensureNotReposted = async (page, row) => {
+  const ensureNotReposted = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("repostBtn").first();
     const before = await buttonText(btn);
     if (!/undo repost|remove repost/i.test(before)) {
@@ -126,7 +160,10 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const ensureBookmarked = async (page, row) => {
+  const ensureBookmarked = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("postBookmarkBtn").first();
     const before = await buttonText(btn);
     if (/remove from saved posts/i.test(before)) {
@@ -137,7 +174,10 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const ensureNotBookmarked = async (page, row) => {
+  const ensureNotBookmarked = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     const btn = row.getByTestId("postBookmarkBtn").first();
     const before = await buttonText(btn);
     if (!/remove from saved posts/i.test(before)) {
@@ -148,7 +188,7 @@ export const createPageFeedActions = ({
     return { note: await buttonText(btn) };
   };
 
-  const visibleEditorLocator = (page) =>
+  const visibleEditorLocator = (page: Page): Locator =>
     page.locator(
       [
         '[aria-label="Rich-Text Editor"]',
@@ -157,7 +197,10 @@ export const createPageFeedActions = ({
       ].join(", "),
     );
 
-  const waitForVisibleEditor = async (page, timeout = 20000) => {
+  const waitForVisibleEditor = async (
+    page: Page,
+    timeout = 20000,
+  ): Promise<Locator> => {
     const editors = visibleEditorLocator(page);
     const started = Date.now();
     while (Date.now() - started < timeout) {
@@ -173,7 +216,9 @@ export const createPageFeedActions = ({
     throw new Error("visible rich-text editor not found");
   };
 
-  const firstVisibleLocator = async (locator) => {
+  const firstVisibleLocator = async (
+    locator: Locator,
+  ): Promise<Locator | null> => {
     const count = await locator.count();
     for (let i = count - 1; i >= 0; i -= 1) {
       const candidate = locator.nth(i);
@@ -185,10 +230,10 @@ export const createPageFeedActions = ({
   };
 
   const publishComposer = async (
-    page,
-    text,
-    { applyWritesLabel, publishLabel },
-  ) => {
+    page: Page,
+    text: string,
+    { applyWritesLabel, publishLabel }: PublishComposerOptions,
+  ): Promise<void> => {
     const editor = await waitForVisibleEditor(page);
     await editor.click({ noWaitAfter: true });
     await editor.fill(text);
@@ -205,7 +250,7 @@ export const createPageFeedActions = ({
     const response = await responsePromise;
     if (response.status() !== 200) {
       throw new Error(
-        `${applyWritesLabel} failed with status ${response.status()}`,
+        `${applyWritesLabel} failed with status ${String(response.status())}`,
       );
     }
     await wait(page, 4000);
@@ -222,7 +267,11 @@ export const createPageFeedActions = ({
       .catch(() => undefined);
   };
 
-  const clickQuote = async (page, row, text) => {
+  const clickQuote = async (
+    page: Page,
+    row: Locator,
+    text: string,
+  ): Promise<void> => {
     await dismissBlockingOverlays(page);
     const btn = row.getByTestId("repostBtn").first();
     await btn.click({ noWaitAfter: true });
@@ -239,8 +288,14 @@ export const createPageFeedActions = ({
     await dismissBlockingOverlays(page);
   };
 
-  const clickReply = async (page, row, text) => {
-    const openReplyComposer = async (scope) => {
+  const clickReply = async (
+    page: Page,
+    row: Page | Locator,
+    text: string,
+  ): Promise<void> => {
+    const openReplyComposer = async (
+      scope: Page | Locator,
+    ): Promise<boolean> => {
       const editor = await waitForVisibleEditor(page, 750).catch(() => null);
       if (editor) {
         return true;
@@ -311,7 +366,10 @@ export const createPageFeedActions = ({
     await dismissBlockingOverlays(page);
   };
 
-  const openPostOptions = async (page, row) => {
+  const openPostOptions = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Locator> => {
     const btn = row.getByTestId("postDropdownBtn").first();
     await btn.click({ noWaitAfter: true });
     const menu = page.locator('[role="menu"]').last();
@@ -319,7 +377,10 @@ export const createPageFeedActions = ({
     return menu;
   };
 
-  const deletePostRow = async (page, row) => {
+  const deletePostRow = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string>> => {
     await openPostOptions(page, row);
     const deleteItem = page
       .getByRole("menuitem", { name: /delete post/i })
@@ -332,9 +393,14 @@ export const createPageFeedActions = ({
     await confirm.click({ noWaitAfter: true });
     await dialog.waitFor({ state: "hidden", timeout: 15000 });
     await wait(page, 3000);
+    return { note: "delete attempted" };
   };
 
-  const maybeDeleteOwnPostByText = async (page, text, successNote) => {
+  const maybeDeleteOwnPostByText = async (
+    page: Page,
+    text: string,
+    successNote: string,
+  ): Promise<Record<string, string>> => {
     const row = await maybeFindRowByPrimaryText(page, text, 10000);
     if (!row) {
       return { note: `not surfaced for cleanup: ${text}` };

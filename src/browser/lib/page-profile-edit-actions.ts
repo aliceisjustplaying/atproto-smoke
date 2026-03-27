@@ -1,5 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type {
+  PageProfileEditActions,
+  PageProfileEditActionsOptions,
+} from "./browser-types.js";
+import type { Page } from "playwright";
 
 export const createPageProfileEditActions = ({
   artifactsDir,
@@ -7,14 +12,14 @@ export const createPageProfileEditActions = ({
   dismissBlockingOverlays,
   avatarPngBase64,
   notes,
-}) => {
-  const ensureAvatarFixture = async () => {
+}: PageProfileEditActionsOptions): PageProfileEditActions => {
+  const ensureAvatarFixture = async (): Promise<string> => {
     const file = path.join(artifactsDir, "avatar-fixture.png");
     await fs.writeFile(file, Buffer.from(avatarPngBase64, "base64"));
     return file;
   };
 
-  const uploadProfileAvatar = async (page) => {
+  const uploadProfileAvatar = async (page: Page): Promise<string> => {
     const avatarFile = await ensureAvatarFixture();
     const fileInputs = page.locator('input[type="file"]');
     const count = await fileInputs.count();
@@ -64,15 +69,19 @@ export const createPageProfileEditActions = ({
     await fileInputs.first().setInputFiles(avatarFile);
     await wait(page, 1500);
     if (Array.isArray(notes)) {
-      notes.push(`edit profile file inputs: ${count}`);
+      notes.push(`edit profile file inputs: ${String(count)}`);
     }
     return avatarFile;
   };
 
-  const editProfile = async (page, { profileNote, handle }) => {
+  const editProfile = async (
+    page: Page,
+    { profileNote, handle }: { profileNote: string; handle?: string },
+  ): Promise<{ avatarFile: string; profileNote: string }> => {
     const edit = page.getByRole("button", { name: /edit profile/i });
     if (!(await edit.count())) {
-      const detail = handle ? ` for ${handle}` : "";
+      const detail =
+        handle !== undefined && handle.length > 0 ? ` for ${handle}` : "";
       throw new Error(`edit profile button unavailable${detail}`);
     }
     await edit.click({ noWaitAfter: true });
@@ -84,7 +93,8 @@ export const createPageProfileEditActions = ({
       await bioField.fill(profileNote);
       const actual = await bioField.inputValue();
       if (actual !== profileNote) {
-        const detail = handle ? ` for ${handle}` : "";
+        const detail =
+          handle !== undefined && handle.length > 0 ? ` for ${handle}` : "";
         throw new Error(
           `profile description fill did not stick${detail}: ${actual}`,
         );

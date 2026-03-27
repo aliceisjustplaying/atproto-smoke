@@ -17,8 +17,9 @@ import {
   errorMessage,
   sleep,
 } from "./lib/runtime-utils.js";
-import type { DualRunConfig, FlexibleRecord, Summary } from "../types.js";
+import type { DualRunConfig, Summary } from "../types.js";
 import { createDualRunConfig } from "../config.js";
+import { parseJsonRecord } from "../guards.js";
 
 export const runDualFromConfig = async (
   config: DualRunConfig,
@@ -163,14 +164,14 @@ export const runDualFromConfigPath = async (
   configPath: string,
 ): Promise<Summary> => {
   const config = createDualRunConfig(
-    JSON.parse(await fs.readFile(configPath, "utf8")) as FlexibleRecord,
+    parseJsonRecord(await fs.readFile(configPath, "utf8"), "dual config"),
   );
   return await runDualFromConfig(config);
 };
 
 export const runDualFromArgv = async (argv = process.argv): Promise<number> => {
-  const configPath = argv[2];
-  if (configPath === undefined) {
+  const configPath = argv[2] ?? "";
+  if (configPath.length === 0) {
     process.stderr.write(
       "usage: node dist/src/browser/run-dual.js <config.json>\n",
     );
@@ -180,9 +181,10 @@ export const runDualFromArgv = async (argv = process.argv): Promise<number> => {
   return summary.ok === true ? 0 : 1;
 };
 
+const entryScript = process.argv[1] ?? "";
 const isDirectExecution =
-  Boolean(process.argv[1]) &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  entryScript.length > 0 &&
+  fileURLToPath(import.meta.url) === path.resolve(entryScript);
 
 if (isDirectExecution) {
   const exitCode = await runDualFromArgv(process.argv);

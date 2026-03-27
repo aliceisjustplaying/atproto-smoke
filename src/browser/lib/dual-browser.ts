@@ -17,8 +17,18 @@ import {
   isIgnoredRequestFailureEntry,
 } from "./failure-rules.js";
 import type { Summary } from "../../types.js";
+import type {
+  DualStepHelpers,
+  SetupDualBrowserResult,
+} from "./browser-types.js";
 
-export const setupDualBrowser = async ({ config, summary }) => {
+export const setupDualBrowser = async ({
+  config,
+  summary,
+}: {
+  config: { browserExecutablePath?: string; headless?: boolean };
+  summary: Summary;
+}): Promise<SetupDualBrowserResult> => {
   const browser = await launchBrowserWithFallback({
     chromium,
     config,
@@ -48,8 +58,6 @@ export const setupDualBrowser = async ({ config, summary }) => {
 
   return {
     browser,
-    primaryContext,
-    secondaryContext,
     primaryPage,
     secondaryPage,
   };
@@ -65,8 +73,8 @@ export const createDualStepHelpers = ({
   summary: Summary;
   primaryPage: Page;
   secondaryPage: Page;
-}) => {
-  const stepTimeoutMs = Number(config.stepTimeoutMs || 120000);
+}): DualStepHelpers => {
+  const stepTimeoutMs = config.stepTimeoutMs ?? 120000;
   const progressEnabled = config.progress !== false;
   const pageFor = (name: string): Page =>
     name === "primary" ? primaryPage : secondaryPage;
@@ -123,7 +131,15 @@ export const finalizeDualSummary = ({
   isIgnoredConsole,
   isIgnoredRequestFailure,
   isIgnoredHttpFailure,
-}) => {
+}: {
+  summary: Summary;
+  config: { strictErrors: boolean };
+  screenshot: DualStepHelpers["screenshot"];
+  browser: SetupDualBrowserResult["browser"];
+  isIgnoredConsole: DualStepHelpers["isIgnoredConsole"];
+  isIgnoredRequestFailure: DualStepHelpers["isIgnoredRequestFailure"];
+  isIgnoredHttpFailure: DualStepHelpers["isIgnoredHttpFailure"];
+}): Promise<Summary> => {
   finalizeSummary({
     summary,
     strictErrors: config.strictErrors,

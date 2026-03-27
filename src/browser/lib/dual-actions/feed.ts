@@ -1,3 +1,10 @@
+import type {
+  DualActions,
+  DualActionsOptions,
+  PageAuthActions,
+  PageFeedActions,
+} from "../browser-types.js";
+import type { Locator, Page } from "playwright";
 import { createPageAuthActions } from "../page-auth-actions.js";
 import { createPageFeedActions } from "../page-feed-actions.js";
 import { dismissBlockingOverlays } from "../runtime-utils.js";
@@ -8,21 +15,42 @@ export const createDualFeedActions = ({
   wait,
   normalizeText,
   buttonText,
-}) => {
-  const authActions = createPageAuthActions({
+}: DualActionsOptions): Pick<
+  DualActions,
+  | "findRowByPrimaryText"
+  | "ensureLiked"
+  | "ensureNotLiked"
+  | "ensureReposted"
+  | "ensureNotReposted"
+  | "ensureBookmarked"
+  | "ensureNotBookmarked"
+  | "clickQuote"
+  | "clickReply"
+  | "maybeFollow"
+  | "maybeUnfollow"
+  | "openNotifications"
+  | "openSavedPosts"
+  | "waitForNotificationsFeed"
+  | "openProfileTab"
+  | "maybeDeleteOwnPostByText"
+  | "openReportPostDraft"
+> => {
+  const authActions: PageAuthActions = createPageAuthActions({
     appUrl: config.appUrl,
     appBaseUrl,
     wait,
-    loginToBlueskyApp: () => undefined,
+    loginToBlueskyApp: () => Promise.resolve({ loginPath: "unused" }),
   });
-  const feedActions = createPageFeedActions({
+  const feedActions: PageFeedActions = createPageFeedActions({
     wait,
     normalizeText,
     buttonText,
     dismissBlockingOverlays,
   });
 
-  const waitForNotificationsFeed = async (page) => {
+  const waitForNotificationsFeed = async (
+    page: Page,
+  ): Promise<Locator | null> => {
     const feed = page.getByTestId("notifsFeed").first();
     if (await feed.count()) {
       await feed.waitFor({ state: "visible", timeout: 15000 });
@@ -31,7 +59,10 @@ export const createDualFeedActions = ({
     return null;
   };
 
-  const openReportPostDraft = async (page, row) => {
+  const openReportPostDraft = async (
+    page: Page,
+    row: Locator,
+  ): Promise<Record<string, string | boolean>> => {
     await feedActions.openPostOptions(page, row);
     await page
       .getByRole("menuitem", { name: /report post/i })

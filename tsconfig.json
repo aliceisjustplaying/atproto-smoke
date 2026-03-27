@@ -10,8 +10,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "strict": false,
-    "strictNullChecks": true,
+    "strict": true,
     "declaration": false,
     "sourceMap": true
   },

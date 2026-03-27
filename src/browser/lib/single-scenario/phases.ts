@@ -1,4 +1,8 @@
-export const runSingleBootstrapPhase = async (ctx) => {
+import type { SingleScenarioContext } from "../browser-types.js";
+
+export const runSingleBootstrapPhase = async (
+  ctx: SingleScenarioContext,
+): Promise<void> => {
   const {
     step,
     config,
@@ -19,11 +23,13 @@ export const runSingleBootstrapPhase = async (ctx) => {
     ensureNotLiked,
     ensureNotReposted,
   } = ctx;
+  const postText =
+    typeof config.postText === "string" ? config.postText : "unknown post";
 
   await step("login", login);
   await step("age-assurance", completeAgeAssuranceIfNeeded, { optional: true });
-  await step("compose-own-post", () => composePost(config.postText));
-  if (config.publicChecks !== false) {
+  await step("compose-own-post", () => composePost(postText));
+  if (config.publicChecks) {
     await step("public-resolve-handle", verifyPublicHandleResolution);
     await step("public-profile", verifyPublicProfile);
     await step("public-author-feed", verifyPublicAuthorFeed);
@@ -32,7 +38,7 @@ export const runSingleBootstrapPhase = async (ctx) => {
 
   const ownPost = await step("find-own-post", async () => {
     const started = Date.now();
-    let lastError;
+    let lastError: Error | undefined;
     while (Date.now() - started < 60000) {
       try {
         await gotoProfile(config.handle);
@@ -41,11 +47,11 @@ export const runSingleBootstrapPhase = async (ctx) => {
           .getByTestId("postsFeed")
           .first()
           .waitFor({ state: "visible", timeout: 15000 });
-        const row = await findRowByPrimaryText(config.postText, 15000);
+        const row = await findRowByPrimaryText(postText, 15000);
         const rowTestId = await row.getAttribute("data-testid");
         return { note: "found own post", rowFound: true, rowTestId };
       } catch (error) {
-        lastError = error;
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
 
       await page
@@ -56,7 +62,7 @@ export const runSingleBootstrapPhase = async (ctx) => {
 
     throw (
       lastError ??
-      new Error(`feed item with primary text not found: ${config.postText}`)
+      new Error(`feed item with primary text not found: ${postText}`)
     );
   });
 
@@ -64,7 +70,7 @@ export const runSingleBootstrapPhase = async (ctx) => {
     return;
   }
 
-  const row = await findRowByPrimaryText(config.postText);
+  const row = await findRowByPrimaryText(postText);
   await step("like-own-post", () => ensureLiked(row), { optional: true });
   await step("repost-own-post", () => ensureReposted(row), { optional: true });
   await step("quote-own-post", () => clickQuote(row, config.quoteText), {
@@ -74,7 +80,7 @@ export const runSingleBootstrapPhase = async (ctx) => {
     "reply-own-post",
     async () => {
       await gotoProfile(config.handle);
-      const refreshed = await findRowByPrimaryText(config.postText, 60000);
+      const refreshed = await findRowByPrimaryText(postText, 60000);
       await clickReply(refreshed, config.replyText);
     },
     { optional: true },
@@ -83,8 +89,8 @@ export const runSingleBootstrapPhase = async (ctx) => {
     "unlike-own-post",
     async () => {
       await gotoProfile(config.handle);
-      const refreshed = await findRowByPrimaryText(config.postText, 60000);
-      return ensureNotLiked(refreshed);
+      const refreshed = await findRowByPrimaryText(postText, 60000);
+      return await ensureNotLiked(refreshed);
     },
     { optional: true },
   );
@@ -92,14 +98,16 @@ export const runSingleBootstrapPhase = async (ctx) => {
     "undo-repost-own-post",
     async () => {
       await gotoProfile(config.handle);
-      const refreshed = await findRowByPrimaryText(config.postText, 60000);
-      return ensureNotReposted(refreshed);
+      const refreshed = await findRowByPrimaryText(postText, 60000);
+      return await ensureNotReposted(refreshed);
     },
     { optional: true },
   );
 };
 
-export const runSingleTargetInteractionPhase = async (ctx) => {
+export const runSingleTargetInteractionPhase = async (
+  ctx: SingleScenarioContext,
+): Promise<void> => {
   const {
     step,
     config,
@@ -119,9 +127,18 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
     maybeUnfollowTarget,
     openNotifications,
   } = ctx;
+  const targetShortHandle = config.targetHandle.replace(/^@/, "");
+  const targetHandle =
+    typeof config.targetHandle === "string"
+      ? config.targetHandle
+      : "unknown target";
+  const quoteText =
+    typeof config.quoteText === "string" ? config.quoteText : "quote";
+  const replyText =
+    typeof config.replyText === "string" ? config.replyText : "reply";
 
   await step("target-profile", async () => {
-    await gotoProfile(config.targetHandle);
+    await gotoProfile(targetHandle);
   });
   await step("follow-target", maybeFollowTarget, { optional: true });
 
@@ -129,7 +146,7 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
     "inspect-target-post",
     async () => {
       const row = await findFirstFeedItem(20000);
-      const preview = ((await row.textContent()) || "")
+      const preview = ((await row.textContent()) ?? "")
         .replace(/\s+/g, " ")
         .slice(0, 160);
       return { note: preview };
@@ -141,7 +158,7 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
     "bookmark-target-post",
     async () => {
       const row = await findFirstFeedItem(20000);
-      return ensureBookmarked(row);
+      return await ensureBookmarked(row);
     },
     { optional: true },
   );
@@ -150,11 +167,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
     "saved-posts-page",
     async () => {
       await openSavedPosts();
-      const handleText = page
-        .getByText(`@${config.targetHandle.replace(/^@/, "")}`)
-        .first();
+      const handleText = page.getByText(`@${targetShortHandle}`).first();
       await handleText.waitFor({ state: "visible", timeout: 20000 });
-      return { note: `saved post by ${config.targetHandle}` };
+      return { note: `saved post by ${targetHandle}` };
     },
     { optional: true },
   );
@@ -162,9 +177,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "like-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      return ensureLiked(row);
+      return await ensureLiked(row);
     },
     { optional: true },
   );
@@ -172,9 +187,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "repost-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      return ensureReposted(row);
+      return await ensureReposted(row);
     },
     { optional: true },
   );
@@ -182,12 +197,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "quote-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      await clickQuote(
-        row,
-        `${config.quoteText} to @${config.targetHandle.replace(/^@/, "")}`,
-      );
+      await clickQuote(row, `${quoteText} to @${targetShortHandle}`);
       return { note: "quoted target post" };
     },
     { optional: true },
@@ -196,12 +208,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "reply-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      await clickReply(
-        row,
-        `${config.replyText} to @${config.targetHandle.replace(/^@/, "")}`,
-      );
+      await clickReply(row, `${replyText} to @${targetShortHandle}`);
       return { note: "replied to target post" };
     },
     { optional: true },
@@ -210,9 +219,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "unlike-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      return ensureNotLiked(row);
+      return await ensureNotLiked(row);
     },
     { optional: true },
   );
@@ -220,9 +229,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "undo-repost-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      return ensureNotReposted(row);
+      return await ensureNotReposted(row);
     },
     { optional: true },
   );
@@ -230,9 +239,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "unbookmark-target-post",
     async () => {
-      await gotoProfile(config.targetHandle);
+      await gotoProfile(targetHandle);
       const row = await findFirstFeedItem(20000);
-      return ensureNotBookmarked(row);
+      return await ensureNotBookmarked(row);
     },
     { optional: true },
   );
@@ -240,8 +249,8 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "unfollow-target",
     async () => {
-      await gotoProfile(config.targetHandle);
-      return maybeUnfollowTarget();
+      await gotoProfile(targetHandle);
+      return await maybeUnfollowTarget();
     },
     { optional: true },
   );
@@ -249,8 +258,8 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   await step(
     "refollow-target",
     async () => {
-      await gotoProfile(config.targetHandle);
-      return maybeFollowTarget();
+      await gotoProfile(targetHandle);
+      return await maybeFollowTarget();
     },
     { optional: true },
   );
@@ -269,7 +278,9 @@ export const runSingleTargetInteractionPhase = async (ctx) => {
   );
 };
 
-export const runSingleProfilePhase = async (ctx) => {
+export const runSingleProfilePhase = async (
+  ctx: SingleScenarioContext,
+): Promise<void> => {
   const {
     step,
     config,
@@ -288,12 +299,14 @@ export const runSingleProfilePhase = async (ctx) => {
     await editProfile();
   });
   await step("local-profile-after-edit", verifyLocalProfileAfterEdit);
-  if (config.publicChecks !== false) {
+  if (config.publicChecks) {
     await step("public-profile-after-edit", verifyPublicProfileAfterEdit);
   }
 };
 
-export const runSingleCleanupPhase = async (ctx) => {
+export const runSingleCleanupPhase = async (
+  ctx: SingleScenarioContext,
+): Promise<void> => {
   const {
     step,
     config,
@@ -301,6 +314,11 @@ export const runSingleCleanupPhase = async (ctx) => {
     openProfileTab,
     maybeDeleteOwnPostByText,
   } = ctx;
+  const targetShortHandle = config.targetHandle.replace(/^@/, "");
+  const quoteText =
+    typeof config.quoteText === "string" ? config.quoteText : "quote";
+  const replyText =
+    typeof config.replyText === "string" ? config.replyText : "reply";
 
   await step(
     "cleanup-own-posts-tab",
@@ -314,7 +332,7 @@ export const runSingleCleanupPhase = async (ctx) => {
 
   await step("delete-own-target-quote", () => {
     return maybeDeleteOwnPostByText(
-      `${config.quoteText} to @${config.targetHandle.replace(/^@/, "")}`,
+      `${quoteText} to @${targetShortHandle}`,
       "deleted target quote post",
     );
   });
@@ -339,7 +357,7 @@ export const runSingleCleanupPhase = async (ctx) => {
 
   await step("delete-own-target-reply", () => {
     return maybeDeleteOwnPostByText(
-      `${config.replyText} to @${config.targetHandle.replace(/^@/, "")}`,
+      `${replyText} to @${targetShortHandle}`,
       "deleted target reply post",
     );
   });

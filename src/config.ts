@@ -5,6 +5,7 @@ import type {
   SingleRunConfig,
   SuiteConfig,
 } from "./types.js";
+import { getRecord } from "./guards.js";
 
 const DEFAULTS = {
   appUrl: "https://bsky.app",
@@ -15,6 +16,14 @@ const DEFAULTS = {
   headless: true,
   strictErrors: false,
   publicChecks: true,
+};
+
+const DEFAULT_ACCOUNT_TEXTS = {
+  postText: "browser smoke root post",
+  mediaPostText: "browser smoke image post",
+  quoteText: "browser smoke quote post",
+  replyText: "browser smoke reply post",
+  profileNote: "browser smoke profile note",
 };
 
 const requireString = (value: unknown, label: string): string => {
@@ -98,6 +107,13 @@ export const createAccountConfig = ({
     handle: requireString(handle, "account.handle"),
     password: requireString(password, "account.password"),
     birthdate: optionalString(birthdate) ?? DEFAULTS.birthdate,
+    postText: optionalString(postText) ?? DEFAULT_ACCOUNT_TEXTS.postText,
+    mediaPostText:
+      optionalString(mediaPostText) ?? DEFAULT_ACCOUNT_TEXTS.mediaPostText,
+    quoteText: optionalString(quoteText) ?? DEFAULT_ACCOUNT_TEXTS.quoteText,
+    replyText: optionalString(replyText) ?? DEFAULT_ACCOUNT_TEXTS.replyText,
+    profileNote:
+      optionalString(profileNote) ?? DEFAULT_ACCOUNT_TEXTS.profileNote,
     cleanupPostPrefixes: normalizeCleanupPrefixes(cleanupPostPrefixes),
     ...rest,
   };
@@ -105,28 +121,6 @@ export const createAccountConfig = ({
   const login = optionalString(loginIdentifier);
   if (login !== undefined) {
     normalized.loginIdentifier = login;
-  }
-
-  const post = optionalString(postText);
-  const mediaPost = optionalString(mediaPostText);
-  const quote = optionalString(quoteText);
-  const reply = optionalString(replyText);
-  const note = optionalString(profileNote);
-
-  if (post !== undefined) {
-    normalized.postText = post;
-  }
-  if (mediaPost !== undefined) {
-    normalized.mediaPostText = mediaPost;
-  }
-  if (quote !== undefined) {
-    normalized.quoteText = quote;
-  }
-  if (reply !== undefined) {
-    normalized.replyText = reply;
-  }
-  if (note !== undefined) {
-    normalized.profileNote = note;
   }
 
   return normalized;
@@ -149,7 +143,7 @@ export const createSuiteConfig = ({
   adapter,
   ...rest
 }: FlexibleRecord = {}): SuiteConfig => {
-  const normalized = {
+  const normalizedBase = {
     pdsUrl: requireString(pdsUrl, "pdsUrl"),
     artifactsDir: requireString(artifactsDir, "artifactsDir"),
     appUrl: optionalString(appUrl) ?? DEFAULTS.appUrl,
@@ -162,39 +156,33 @@ export const createSuiteConfig = ({
     strictErrors: Boolean(strictErrors),
     publicChecks: Boolean(publicChecks),
     ...rest,
-  } as SuiteConfig;
+  };
 
   const derivedPdsHost =
-    optionalString(pdsHost) ?? derivePdsHost(normalized.pdsUrl);
+    optionalString(pdsHost) ?? derivePdsHost(normalizedBase.pdsUrl);
   if (derivedPdsHost === undefined) {
     throw new Error("pdsHost could not be derived from pdsUrl");
   }
-  normalized.pdsHost = derivedPdsHost;
 
   const maybeTarget = optionalString(targetHandle);
-  if (maybeTarget !== undefined) {
-    normalized.targetHandle = maybeTarget;
-  }
-
   const maybeRemoteReplyPostUrl = optionalPostUrl(
     remoteReplyPostUrl,
     "remoteReplyPostUrl",
   );
-  if (maybeRemoteReplyPostUrl !== undefined) {
-    normalized.remoteReplyPostUrl = maybeRemoteReplyPostUrl;
-  }
-
   const maybeBrowserExecutablePath = optionalString(browserExecutablePath);
-  if (maybeBrowserExecutablePath !== undefined) {
-    normalized.browserExecutablePath = maybeBrowserExecutablePath;
-  }
-
   const maybeAdapter = optionalString(adapter);
-  if (maybeAdapter !== undefined) {
-    normalized.adapter = maybeAdapter;
-  }
-
-  return normalized;
+  return {
+    ...normalizedBase,
+    pdsHost: derivedPdsHost,
+    ...(maybeTarget !== undefined ? { targetHandle: maybeTarget } : {}),
+    ...(maybeRemoteReplyPostUrl !== undefined
+      ? { remoteReplyPostUrl: maybeRemoteReplyPostUrl }
+      : {}),
+    ...(maybeBrowserExecutablePath !== undefined
+      ? { browserExecutablePath: maybeBrowserExecutablePath }
+      : {}),
+    ...(maybeAdapter !== undefined ? { adapter: maybeAdapter } : {}),
+  };
 };
 
 export const createSingleRunConfig = ({
@@ -206,11 +194,13 @@ export const createSingleRunConfig = ({
   if (suite.targetHandle === undefined) {
     throw new Error("targetHandle is required for single-mode runs");
   }
+  const normalizedAccount = getRecord(account) ?? {};
   return {
     ...suite,
-    ...createAccountConfig((account as FlexibleRecord | undefined) ?? {}),
+    ...createAccountConfig(normalizedAccount),
+    targetHandle: suite.targetHandle,
     editProfile: Boolean(editProfile),
-  } as SingleRunConfig;
+  };
 };
 
 export const createDualRunConfig = ({
@@ -219,12 +209,12 @@ export const createDualRunConfig = ({
   accountSource,
   ...rest
 }: FlexibleRecord = {}): DualRunConfig => {
+  const normalizedPrimary = getRecord(primary) ?? {};
+  const normalizedSecondary = getRecord(secondary) ?? {};
   const normalized: DualRunConfig = {
     ...createSuiteConfig(rest),
-    primary: createAccountConfig((primary as FlexibleRecord | undefined) ?? {}),
-    secondary: createAccountConfig(
-      (secondary as FlexibleRecord | undefined) ?? {},
-    ),
+    primary: createAccountConfig(normalizedPrimary),
+    secondary: createAccountConfig(normalizedSecondary),
   };
 
   const maybeAccountSource = optionalString(accountSource);

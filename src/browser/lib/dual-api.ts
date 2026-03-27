@@ -4,36 +4,107 @@ import {
   sleep,
 } from "./runtime-utils.js";
 import { derivePdsHost } from "../../config.js";
+import {
+  getRecordArray,
+  getRecordValue,
+  getString,
+  isRecord,
+} from "../../guards.js";
 import type {
   AccountConfig,
   FetchJsonResult,
-  FetchStatusResult,
   FlexibleRecord,
   RepoRecord,
+  RuntimeDualAccount,
+  SessionInfo,
   XrpcJsonOptions,
 } from "../../types.js";
-
-const asRecord = (value: unknown): FlexibleRecord | undefined => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return undefined;
-  }
-  return value as FlexibleRecord;
-};
 
 export const createDualApiHelpers = ({
   config,
 }: {
   config: { pdsUrl: string };
-}) => {
-  const fetchJson = (
-    url: string,
-    options: FlexibleRecord = {},
-  ): Promise<FetchJsonResult> => fetchJsonWithTimeout(url, options);
-
-  const fetchStatus = (
-    url: string,
-    options: FlexibleRecord = {},
-  ): Promise<FetchStatusResult> => fetchStatusWithTimeout(url, options);
+}): {
+  fetchJson: typeof fetchJsonWithTimeout;
+  fetchStatus: typeof fetchStatusWithTimeout;
+  xrpcJson: (
+    nsid: string,
+    options?: XrpcJsonOptions,
+  ) => Promise<FetchJsonResult>;
+  listOwnRecords: (
+    account: AccountConfig,
+    collection: string,
+    limit?: number,
+  ) => Promise<RepoRecord[]>;
+  deleteOwnRecord: (
+    account: AccountConfig,
+    collection: string,
+    record: RepoRecord | string,
+  ) => Promise<{ rkey: string }>;
+  purgeOwnRecords: (
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
+    limit?: number,
+  ) => Promise<number>;
+  waitForOwnRecord: (
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
+    timeoutMs?: number,
+  ) => Promise<RepoRecord>;
+  waitForOwnPostRecord: (
+    account: AccountConfig,
+    text: string,
+    timeoutMs?: number,
+  ) => Promise<RepoRecord>;
+  waitForFollowRecord: (
+    account: AccountConfig,
+    subjectDid: string,
+    timeoutMs?: number,
+  ) => Promise<RepoRecord>;
+  waitForNoOwnRecord: (
+    account: AccountConfig,
+    collection: string,
+    predicate: (record: RepoRecord) => boolean,
+    timeoutMs?: number,
+  ) => Promise<true>;
+  waitForOwnListRecord: (
+    account: AccountConfig,
+    name: string,
+    timeoutMs?: number,
+  ) => Promise<RepoRecord>;
+  waitForOwnListItemRecord: (
+    account: AccountConfig,
+    listUri: string,
+    subjectDid: string,
+    timeoutMs?: number,
+  ) => Promise<RepoRecord>;
+  recordRkey: (recordOrUri: RepoRecord | string) => string | undefined;
+  createSession: (account: AccountConfig) => Promise<SessionInfo>;
+  pollNotifications: (args: {
+    account: AccountConfig;
+    authorHandle: string;
+    reasons: string[];
+    minIndexedAt: number;
+    timeoutMs?: number;
+  }) => Promise<{
+    notifications: FlexibleRecord[];
+    allNotifications: FlexibleRecord[];
+  }>;
+  prepareAccounts: (args: {
+    primaryConfig: AccountConfig;
+    secondaryConfig: AccountConfig;
+    startedAt: string;
+  }) => { primary: RuntimeDualAccount; secondary: RuntimeDualAccount };
+  cleanupStaleSmokeArtifacts: (account: AccountConfig) => Promise<{
+    deletedPosts: number;
+    deletedListItems: number;
+    deletedLists: number;
+  }>;
+} => {
+  const fetchJson = fetchJsonWithTimeout;
+  const fetchStatus = fetchStatusWithTimeout;
 
   const collectionFromUri = (uri: string | undefined): string | undefined => {
     // Example: at://did:plc:123/app.bsky.feed.post/3kabc -> app.bsky.feed.post
@@ -45,17 +116,19 @@ export const createDualApiHelpers = ({
   };
 
   const normalizeRepoRecord = (record: RepoRecord): RepoRecord => {
-    const recordValue = asRecord(record.value);
-    const innerValue = asRecord(recordValue?.value);
+    const recordValue = isRecord(record.value) ? record.value : undefined;
+    const innerValue = isRecord(recordValue?.value)
+      ? recordValue.value
+      : undefined;
     const innerType =
       typeof innerValue?.$type === "string" ? innerValue.$type : undefined;
-    const expectedCollection = collectionFromUri(record?.uri);
+    const expectedCollection = collectionFromUri(record.uri);
     if (
       recordValue !== undefined &&
       innerValue !== undefined &&
       recordValue.$type === undefined &&
       typeof innerType === "string" &&
-      (!expectedCollection || innerType === expectedCollection)
+      (expectedCollection === undefined || innerType === expectedCollection)
     ) {
       return {
         ...record,
@@ -70,21 +143,23 @@ export const createDualApiHelpers = ({
     options: XrpcJsonOptions = {},
   ): Promise<FetchJsonResult> => {
     const { method = "GET", token, params, body, timeoutMs, pdsUrl } = options;
-    const basePdsUrl = pdsUrl || config.pdsUrl;
+    const basePdsUrl = pdsUrl ?? config.pdsUrl;
     const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
-    if (params) {
+    if (params !== undefined) {
       for (const [key, value] of Object.entries(params)) {
         url.searchParams.set(key, value);
       }
     }
     const headers: Record<string, string> = { accept: "application/json" };
-    if (token) {
+    if (token !== undefined && token.length > 0) {
       headers.authorization = `Bearer ${token}`;
     }
     if (body !== undefined) {
       headers["content-type"] = "application/json";
     }
-    const run = (extraHeaders: Record<string, string> = {}) =>
+    const run = (
+      extraHeaders: Record<string, string> = {},
+    ): Promise<FetchJsonResult> =>
       fetchJson(url.toString(), {
         method,
         headers: {
@@ -122,18 +197,18 @@ export const createDualApiHelpers = ({
     });
     if (!result.ok) {
       throw new Error(
-        `listRecords failed for ${account.handle} collection ${collection}: ${result.status} ${result.text}`,
+        `listRecords failed for ${account.handle} collection ${collection}: ${String(result.status)} ${result.text}`,
       );
     }
-    const records = Array.isArray(asRecord(result.json)?.records)
-      ? (asRecord(result.json)?.records as RepoRecord[])
+    const json = isRecord(result.json) ? result.json : undefined;
+    const records = Array.isArray(json?.records)
+      ? json.records.filter(isRecord).map((record): RepoRecord => record)
       : [];
     return records.map(normalizeRepoRecord);
   };
 
   const recordRkey = (recordOrUri: RepoRecord | string): string | undefined => {
-    const uri =
-      typeof recordOrUri === "string" ? recordOrUri : recordOrUri?.uri;
+    const uri = typeof recordOrUri === "string" ? recordOrUri : recordOrUri.uri;
     return uri?.split("/").pop();
   };
 
@@ -143,7 +218,7 @@ export const createDualApiHelpers = ({
     record: RepoRecord | string,
   ): Promise<{ rkey: string }> => {
     const rkey = recordRkey(record);
-    if (!rkey) {
+    if (rkey === undefined || rkey.length === 0) {
       throw new Error(
         `unable to determine rkey for ${collection} on ${account.handle}`,
       );
@@ -160,7 +235,7 @@ export const createDualApiHelpers = ({
     });
     if (!result.ok) {
       throw new Error(
-        `deleteRecord failed for ${account.handle} ${collection} ${rkey}: ${result.status} ${result.text}`,
+        `deleteRecord failed for ${account.handle} ${collection} ${rkey}: ${String(result.status)} ${result.text}`,
       );
     }
     return { rkey };
@@ -209,7 +284,7 @@ export const createDualApiHelpers = ({
     return waitForOwnRecord(
       account,
       "app.bsky.feed.post",
-      (record) => record?.value?.text === text,
+      (record) => record.value?.text === text,
       timeoutMs,
     );
   };
@@ -222,7 +297,7 @@ export const createDualApiHelpers = ({
     waitForOwnRecord(
       account,
       "app.bsky.graph.follow",
-      (record) => record?.value?.subject === subjectDid,
+      (record) => record.value?.subject === subjectDid,
       timeoutMs,
     );
 
@@ -253,7 +328,7 @@ export const createDualApiHelpers = ({
     waitForOwnRecord(
       account,
       "app.bsky.graph.list",
-      (record) => record?.value?.name === name,
+      (record) => record.value?.name === name,
       timeoutMs,
     );
 
@@ -267,15 +342,15 @@ export const createDualApiHelpers = ({
       account,
       "app.bsky.graph.listitem",
       (record) =>
-        record?.value?.list === listUri &&
-        record?.value?.subject === subjectDid,
+        getString(record.value, "list") === listUri &&
+        getString(record.value, "subject") === subjectDid,
       timeoutMs,
     );
 
   const createSession = async (
     account: AccountConfig,
-  ): Promise<FlexibleRecord> => {
-    const identifier = account.loginIdentifier || account.handle;
+  ): Promise<SessionInfo> => {
+    const identifier = account.loginIdentifier ?? account.handle;
     const result = await xrpcJson("com.atproto.server.createSession", {
       method: "POST",
       pdsUrl: account.pdsUrl,
@@ -286,10 +361,22 @@ export const createDualApiHelpers = ({
     });
     if (!result.ok) {
       throw new Error(
-        `createSession failed for ${identifier}: ${result.status} ${result.text}`,
+        `createSession failed for ${identifier}: ${String(result.status)} ${result.text}`,
       );
     }
-    return (result.json ?? {}) as FlexibleRecord;
+    const session = isRecord(result.json) ? result.json : undefined;
+    const accessJwt = getString(session, "accessJwt");
+    const did = getString(session, "did");
+    if (accessJwt === undefined || did === undefined) {
+      throw new Error(
+        `createSession returned an incomplete session for ${identifier}`,
+      );
+    }
+    return {
+      ...session,
+      accessJwt,
+      did,
+    };
   };
 
   const pollNotifications = async ({
@@ -309,7 +396,7 @@ export const createDualApiHelpers = ({
     allNotifications: FlexibleRecord[];
   }> => {
     const started = Date.now();
-    let last;
+    let last: FetchJsonResult | undefined;
     while (Date.now() - started < timeoutMs) {
       last = await xrpcJson("app.bsky.notification.listNotifications", {
         token: account.accessJwt,
@@ -317,41 +404,70 @@ export const createDualApiHelpers = ({
         params: { limit: "100" },
         timeoutMs: 15000,
       });
-      if (last.ok && Array.isArray(last.json?.notifications)) {
-        const matching = last.json.notifications.filter((item) => {
-          if (item?.author?.handle !== authorHandle) {
+      const lastJson = isRecord(last.json) ? last.json : undefined;
+      const notifications = getRecordArray(lastJson, "notifications");
+      if (last.ok && notifications.length > 0) {
+        const matching = notifications.filter((item) => {
+          const author = getRecordValue(item, "author");
+          if (getString(author, "handle") !== authorHandle) {
             return false;
           }
-          const indexedAt = Date.parse(
-            item?.indexedAt || item?.record?.createdAt || 0,
-          );
+          const record = getRecordValue(item, "record");
+          const indexedAtText =
+            getString(item, "indexedAt") ??
+            getString(record, "createdAt") ??
+            "0";
+          const indexedAt = Date.parse(indexedAtText);
           if (Number.isFinite(minIndexedAt) && indexedAt < minIndexedAt) {
             return false;
           }
-          return reasons.includes(item?.reason);
+          const reason = getString(item, "reason");
+          return reason !== undefined && reasons.includes(reason);
         });
-        const seenReasons = new Set(matching.map((item) => item.reason));
+        const seenReasons = new Set(
+          matching
+            .map((item) => getString(item, "reason"))
+            .filter((reason): reason is string => reason !== undefined),
+        );
         if (reasons.every((reason) => seenReasons.has(reason))) {
           return {
             notifications: matching,
-            allNotifications: last.json.notifications.slice(0, 12),
+            allNotifications: notifications.slice(0, 12),
           };
         }
       }
       await sleep(5000);
     }
     throw new Error(
-      `notifications not observed for ${account.handle} within ${timeoutMs}ms; last status=${last?.status ?? "none"} body=${last?.text ?? ""}`,
+      `notifications not observed for ${account.handle} within ${String(timeoutMs)}ms; last status=${String(last?.status ?? "none")} body=${last?.text ?? ""}`,
     );
   };
 
-  const accountFromConfig = (entry: AccountConfig): AccountConfig => ({
+  const normalizeSession = (entry: AccountConfig): SessionInfo => {
+    const accessJwt =
+      getString(entry.session, "accessJwt") ?? entry.accessJwt ?? "";
+    const did = getString(entry.session, "did") ?? entry.did ?? "";
+    return {
+      ...(isRecord(entry.session) ? entry.session : {}),
+      accessJwt,
+      did,
+    };
+  };
+
+  const accountFromConfig = (entry: AccountConfig): RuntimeDualAccount => ({
     ...entry,
     pdsUrl: entry.pdsUrl ?? config.pdsUrl,
     pdsHost: entry.pdsHost ?? derivePdsHost(entry.pdsUrl ?? config.pdsUrl),
     loginIdentifier: entry.loginIdentifier ?? entry.handle,
-    mediaPostText: entry.mediaPostText ?? `${entry.postText} image`,
+    mediaPostText: entry.mediaPostText,
     shortHandle: entry.handle.replace(/^@/, ""),
+    did: entry.did ?? "",
+    accessJwt: entry.accessJwt ?? "",
+    listName: entry.listName ?? "",
+    listDescription: entry.listDescription ?? "",
+    listUpdatedName: entry.listUpdatedName ?? "",
+    listUpdatedDescription: entry.listUpdatedDescription ?? "",
+    session: normalizeSession(entry),
   });
 
   const prepareAccounts = ({
@@ -362,17 +478,17 @@ export const createDualApiHelpers = ({
     primaryConfig: AccountConfig;
     secondaryConfig: AccountConfig;
     startedAt: string;
-  }): { primary: AccountConfig; secondary: AccountConfig } => {
+  }): { primary: RuntimeDualAccount; secondary: RuntimeDualAccount } => {
     const runToken = startedAt.replace(/\D/g, "").slice(0, 14);
     const primary = accountFromConfig({
       ...primaryConfig,
-      listName: primaryConfig.listName || `Smoke List ${runToken}`,
+      listName: primaryConfig.listName ?? `Smoke List ${runToken}`,
       listDescription:
-        primaryConfig.listDescription || `smoke list description ${runToken}`,
+        primaryConfig.listDescription ?? `smoke list description ${runToken}`,
       listUpdatedName:
-        primaryConfig.listUpdatedName || `Updated Smoke List ${runToken}`,
+        primaryConfig.listUpdatedName ?? `Updated Smoke List ${runToken}`,
       listUpdatedDescription:
-        primaryConfig.listUpdatedDescription ||
+        primaryConfig.listUpdatedDescription ??
         `updated smoke list description ${runToken}`,
     });
     const secondary = accountFromConfig(secondaryConfig);
@@ -382,7 +498,7 @@ export const createDualApiHelpers = ({
   const stalePostPrefixesFor = (account: AccountConfig): string[] => {
     if (
       Array.isArray(account.cleanupPostPrefixes) &&
-      account.cleanupPostPrefixes.length
+      account.cleanupPostPrefixes.length > 0
     ) {
       return account.cleanupPostPrefixes;
     }

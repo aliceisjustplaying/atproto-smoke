@@ -1,5 +1,16 @@
-export const createDualModerationActions = ({ wait }) => {
-  const openProfileMenu = async (page) => {
+import type { Locator, Page } from "playwright";
+import type { DualActions, DualActionsOptions } from "../browser-types.js";
+
+export const createDualModerationActions = ({
+  wait,
+}: DualActionsOptions): Pick<
+  DualActions,
+  | "ensureProfileMuted"
+  | "ensureProfileUnmuted"
+  | "blockProfile"
+  | "unblockProfile"
+> => {
+  const openProfileMenu = async (page: Page): Promise<Locator> => {
     const btn = page.getByTestId("profileHeaderDropdownBtn").first();
     await btn.waitFor({ state: "visible", timeout: 15000 });
     await btn.click({ noWaitAfter: true });
@@ -8,7 +19,7 @@ export const createDualModerationActions = ({ wait }) => {
     return menu;
   };
 
-  const menuItems = (page) =>
+  const menuItems = (page: Page): Promise<string[]> =>
     page
       .locator('[role="menuitem"]')
       .evaluateAll((els) =>
@@ -17,7 +28,7 @@ export const createDualModerationActions = ({ wait }) => {
           .filter(Boolean),
       );
 
-  const closeActiveMenu = async (page) => {
+  const closeActiveMenu = async (page: Page): Promise<void> => {
     const backdrop = page.locator('[aria-label*="backdrop"]').last();
     if (await backdrop.count()) {
       await backdrop
@@ -30,7 +41,9 @@ export const createDualModerationActions = ({ wait }) => {
     await wait(page, 400);
   };
 
-  const ensureProfileMuted = async (page) => {
+  const ensureProfileMuted = async (
+    page: Page,
+  ): Promise<Record<string, string>> => {
     await openProfileMenu(page);
     const items = await menuItems(page);
     if (items.some((item) => /unmute account/i.test(item))) {
@@ -50,7 +63,9 @@ export const createDualModerationActions = ({ wait }) => {
     return { note: "muted account" };
   };
 
-  const ensureProfileUnmuted = async (page) => {
+  const ensureProfileUnmuted = async (
+    page: Page,
+  ): Promise<Record<string, string>> => {
     await openProfileMenu(page);
     const items = await menuItems(page);
     if (!items.some((item) => /unmute account/i.test(item))) {
@@ -70,7 +85,7 @@ export const createDualModerationActions = ({ wait }) => {
     return { note: "unmuted account" };
   };
 
-  const blockProfile = async (page) => {
+  const blockProfile = async (page: Page): Promise<Record<string, string>> => {
     await openProfileMenu(page);
     const items = await menuItems(page);
     if (items.some((item) => /unblock account/i.test(item))) {
@@ -93,7 +108,9 @@ export const createDualModerationActions = ({ wait }) => {
     return { note: "blocked account" };
   };
 
-  const unblockProfile = async (page) => {
+  const unblockProfile = async (
+    page: Page,
+  ): Promise<Record<string, string>> => {
     const unblock = page.getByRole("button", { name: /unblock/i }).first();
     if (!(await unblock.count())) {
       return { note: "already unblocked" };

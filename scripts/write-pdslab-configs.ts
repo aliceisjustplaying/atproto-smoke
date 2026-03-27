@@ -3,9 +3,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { errorMessage } from "../src/browser/lib/runtime-utils.js";
+import {
+  getRecord,
+  getString,
+  getUnknown,
+  parseJsonRecord,
+} from "../src/guards.js";
 import { PDSLAB_TARGETS } from "../src/lab/pdslab-targets.js";
 import type { FlexibleRecord } from "../src/types.js";
-import { errorMessage } from "../src/browser/lib/runtime-utils.js";
+
+type PdslabTargetSpec = (typeof PDSLAB_TARGETS)[number];
 
 interface PlanTarget {
   id: string;
@@ -27,13 +35,6 @@ interface Plan {
   runnableTargets: PlanTarget[];
   skippedTargets: SkippedTarget[];
 }
-
-const asRecord = (value: unknown): FlexibleRecord | undefined => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return undefined;
-  }
-  return value as FlexibleRecord;
-};
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -72,30 +73,37 @@ const usage = `Usage:
   bun run write:pdslab-configs [--ledger .tmp/smoke-accounts.local.json] [--output-dir .tmp/generated/pdslab-configs]
 `;
 
-const readJson = async (filePath: string): Promise<FlexibleRecord> => {
-  return JSON.parse(await fs.readFile(filePath, "utf8"));
-};
+const readJson = async (filePath: string): Promise<FlexibleRecord> =>
+  parseJsonRecord(await fs.readFile(filePath, "utf8"), filePath);
 
 const ensureTarget = (
   ledger: FlexibleRecord,
   targetId: string,
 ): FlexibleRecord => {
-  const targets = asRecord(ledger.targets);
-  const target = asRecord(targets?.[targetId]);
+  const targets = getRecord(ledger.targets);
+  const target = getRecord(targets?.[targetId]);
   if (target === undefined) {
     throw new Error(`ledger target missing: ${targetId}`);
   }
   return target;
 };
 
-const createAccountDefaults = ({
-  spec,
-  role,
-}: {
-  spec: FlexibleRecord;
-  role: string;
-}): FlexibleRecord => {
-  const prefix = `pdslab ${spec.id} ${role}`;
+const requiredAccountString = (
+  account: FlexibleRecord,
+  key: "handle" | "password" | "did",
+): string => {
+  const value = getString(account, key);
+  if (value === undefined) {
+    throw new Error(`account is missing required ${key}`);
+  }
+  return value;
+};
+
+const createAccountDefaults = (
+  specId: string,
+  role: string,
+): FlexibleRecord => {
+  const prefix = `pdslab ${specId} ${role}`;
   return {
     postText: `${prefix} root post`,
     mediaPostText: `${prefix} image post`,
@@ -109,27 +117,23 @@ const createAccountDefaults = ({
 const createAccount = ({
   account,
   loginIdentifierKey,
-  spec,
+  specId,
   role,
 }: {
   account: FlexibleRecord;
   loginIdentifierKey?: string;
-  spec: FlexibleRecord;
+  specId: string;
   role: string;
 }): FlexibleRecord => {
-  if (!account) {
-    throw new Error("account details are required");
-  }
-
   const normalized: FlexibleRecord = {
-    ...createAccountDefaults({ spec, role }),
-    handle: account.handle,
-    password: account.password,
+    ...createAccountDefaults(specId, role),
+    handle: requiredAccountString(account, "handle"),
+    password: requiredAccountString(account, "password"),
   };
 
-  if (loginIdentifierKey) {
-    const loginIdentifier = account[loginIdentifierKey];
-    if (typeof loginIdentifier !== "string" || loginIdentifier.length === 0) {
+  if (loginIdentifierKey !== undefined) {
+    const loginIdentifier = getString(account, loginIdentifierKey);
+    if (loginIdentifier === undefined || loginIdentifier.length === 0) {
       throw new Error(
         `missing loginIdentifierKey "${loginIdentifierKey}" on account`,
       );
@@ -137,17 +141,21 @@ const createAccount = ({
     normalized.loginIdentifier = loginIdentifier;
   }
 
-  if (account.did) {
-    normalized.did = account.did;
+  const did = getString(account, "did");
+  if (did !== undefined) {
+    normalized.did = did;
   }
-  if (account.email) {
-    normalized.email = account.email;
+  const email = getString(account, "email");
+  if (email !== undefined) {
+    normalized.email = email;
   }
-  if (account.pdsUrl) {
-    normalized.pdsUrl = account.pdsUrl;
+  const pdsUrl = getString(account, "pdsUrl");
+  if (pdsUrl !== undefined) {
+    normalized.pdsUrl = pdsUrl;
   }
-  if (account.pdsHost) {
-    normalized.pdsHost = account.pdsHost;
+  const pdsHost = getString(account, "pdsHost");
+  if (pdsHost !== undefined) {
+    normalized.pdsHost = pdsHost;
   }
 
   return normalized;
@@ -157,13 +165,26 @@ const createSingleConfig = ({
   spec,
   ledgerTarget,
 }: {
-  spec: FlexibleRecord;
+  spec: PdslabTargetSpec;
   ledgerTarget: FlexibleRecord;
 }): FlexibleRecord => {
-  const accountSource = spec.currentDeploymentKey
-    ? ledgerTarget[String(spec.currentDeploymentKey)]
-    : asRecord(ledgerTarget.accounts)?.[String(spec.ledgerAccount)];
-  const normalizedAccountSource = asRecord(accountSource);
+  const currentDeploymentKey =
+    "currentDeploymentKey" in spec &&
+    typeof spec.currentDeploymentKey === "string"
+      ? spec.currentDeploymentKey
+      : undefined;
+  const ledgerAccount =
+    "ledgerAccount" in spec && typeof spec.ledgerAccount === "string"
+      ? spec.ledgerAccount
+      : undefined;
+  const accountSource =
+    currentDeploymentKey !== undefined
+      ? getUnknown(ledgerTarget, currentDeploymentKey)
+      : getRecord(ledgerTarget.accounts)?.[ledgerAccount ?? ""];
+  const normalizedAccountSource = getRecord(accountSource);
+  const specAccountSource =
+    "accountSource" in spec ? spec.accountSource : undefined;
+  const specPairGroup = "pairGroup" in spec ? spec.pairGroup : undefined;
 
   if (normalizedAccountSource === undefined) {
     throw new Error(
@@ -173,23 +194,23 @@ const createSingleConfig = ({
 
   return {
     adapter: spec.adapter,
-    pdsUrl: ledgerTarget.pdsUrl,
+    pdsUrl: getUnknown(ledgerTarget, "pdsUrl"),
     artifactsDir: `data/browser-smoke/pdslab/${spec.id}`,
     targetHandle: "smoke-a.perlsky.pdslab.net",
-    accountSource: spec.accountSource,
+    accountSource: specAccountSource,
     pdslabTargetId: spec.id,
     pdslabRunnerStatus: spec.runnerStatus,
-    pdslabPairGroup: spec.pairGroup,
+    pdslabPairGroup: specPairGroup,
     pdslabNotes: spec.notes,
     account: createAccount({
       account: normalizedAccountSource,
       loginIdentifierKey:
+        "loginIdentifierKey" in spec &&
         typeof spec.loginIdentifierKey === "string"
           ? spec.loginIdentifierKey
           : undefined,
-      spec,
-      role:
-        typeof spec.ledgerAccount === "string" ? spec.ledgerAccount : "single",
+      specId: spec.id,
+      role: ledgerAccount ?? "single",
     }),
   };
 };
@@ -198,12 +219,14 @@ const createDualConfig = ({
   spec,
   ledgerTarget,
 }: {
-  spec: FlexibleRecord;
+  spec: PdslabTargetSpec;
   ledgerTarget: FlexibleRecord;
 }): FlexibleRecord => {
-  const accounts = asRecord(ledgerTarget.accounts);
-  const primary = asRecord(accounts?.["smoke-a"]);
-  const secondary = asRecord(accounts?.["smoke-b"]);
+  const accounts = getRecord(ledgerTarget.accounts);
+  const primary = getRecord(accounts?.["smoke-a"]);
+  const secondary = getRecord(accounts?.["smoke-b"]);
+  const specAccountSource =
+    "accountSource" in spec ? spec.accountSource : undefined;
   if (primary === undefined || secondary === undefined) {
     throw new Error(
       `dual target ${spec.id} is missing smoke-a or smoke-b in the ledger`,
@@ -212,14 +235,22 @@ const createDualConfig = ({
 
   return {
     adapter: spec.adapter,
-    pdsUrl: ledgerTarget.pdsUrl,
+    pdsUrl: getUnknown(ledgerTarget, "pdsUrl"),
     artifactsDir: `data/browser-smoke/pdslab/${spec.id}`,
-    accountSource: spec.accountSource,
+    accountSource: specAccountSource,
     pdslabTargetId: spec.id,
     pdslabRunnerStatus: spec.runnerStatus,
     pdslabNotes: spec.notes,
-    primary: createAccount({ account: primary, spec, role: "primary" }),
-    secondary: createAccount({ account: secondary, spec, role: "secondary" }),
+    primary: createAccount({
+      account: primary,
+      specId: spec.id,
+      role: "primary",
+    }),
+    secondary: createAccount({
+      account: secondary,
+      specId: spec.id,
+      role: "secondary",
+    }),
   };
 };
 
@@ -228,22 +259,39 @@ const createCrossPdsDualConfig = ({
   primaryLedgerTarget,
   secondaryLedgerTarget,
 }: {
-  spec: FlexibleRecord;
+  spec: PdslabTargetSpec;
   primaryLedgerTarget: FlexibleRecord;
   secondaryLedgerTarget: FlexibleRecord;
 }): FlexibleRecord => {
-  const primarySource = spec.primaryCurrentDeploymentKey
-    ? primaryLedgerTarget[String(spec.primaryCurrentDeploymentKey)]
-    : asRecord(primaryLedgerTarget.accounts)?.[
-        String(spec.primaryLedgerAccount)
-      ];
-  const secondarySource = spec.secondaryCurrentDeploymentKey
-    ? secondaryLedgerTarget[String(spec.secondaryCurrentDeploymentKey)]
-    : asRecord(secondaryLedgerTarget.accounts)?.[
-        String(spec.secondaryLedgerAccount)
-      ];
+  const primarySource =
+    "primaryCurrentDeploymentKey" in spec &&
+    typeof spec.primaryCurrentDeploymentKey === "string"
+      ? getUnknown(primaryLedgerTarget, spec.primaryCurrentDeploymentKey)
+      : getRecord(primaryLedgerTarget.accounts)?.[
+          "primaryLedgerAccount" in spec &&
+          typeof spec.primaryLedgerAccount === "string"
+            ? spec.primaryLedgerAccount
+            : ""
+        ];
+  const secondarySource =
+    "secondaryCurrentDeploymentKey" in spec &&
+    typeof spec.secondaryCurrentDeploymentKey === "string"
+      ? getUnknown(secondaryLedgerTarget, spec.secondaryCurrentDeploymentKey)
+      : getRecord(secondaryLedgerTarget.accounts)?.[
+          "secondaryLedgerAccount" in spec &&
+          typeof spec.secondaryLedgerAccount === "string"
+            ? spec.secondaryLedgerAccount
+            : ""
+        ];
 
-  if (!asRecord(primarySource) || !asRecord(secondarySource)) {
+  const normalizedPrimarySource = getRecord(primarySource);
+  const normalizedSecondarySource = getRecord(secondarySource);
+  const specAccountSource =
+    "accountSource" in spec ? spec.accountSource : undefined;
+  if (
+    normalizedPrimarySource === undefined ||
+    normalizedSecondarySource === undefined
+  ) {
     throw new Error(
       `cross-PDS target ${spec.id} is missing one of its accounts in the ledger`,
     );
@@ -251,34 +299,36 @@ const createCrossPdsDualConfig = ({
 
   return {
     adapter: spec.adapter,
-    pdsUrl: primaryLedgerTarget.pdsUrl,
+    pdsUrl: getUnknown(primaryLedgerTarget, "pdsUrl"),
     artifactsDir: `data/browser-smoke/pdslab/${spec.id}`,
-    accountSource: spec.accountSource,
+    accountSource: specAccountSource,
     pdslabTargetId: spec.id,
     pdslabRunnerStatus: spec.runnerStatus,
     pdslabNotes: spec.notes,
     primary: createAccount({
       account: {
-        ...asRecord(primarySource),
-        pdsUrl: primaryLedgerTarget.pdsUrl,
+        ...normalizedPrimarySource,
+        pdsUrl: getUnknown(primaryLedgerTarget, "pdsUrl"),
       },
       loginIdentifierKey:
+        "primaryLoginIdentifierKey" in spec &&
         typeof spec.primaryLoginIdentifierKey === "string"
           ? spec.primaryLoginIdentifierKey
           : undefined,
-      spec,
+      specId: spec.id,
       role: "primary",
     }),
     secondary: createAccount({
       account: {
-        ...asRecord(secondarySource),
-        pdsUrl: secondaryLedgerTarget.pdsUrl,
+        ...normalizedSecondarySource,
+        pdsUrl: getUnknown(secondaryLedgerTarget, "pdsUrl"),
       },
       loginIdentifierKey:
+        "secondaryLoginIdentifierKey" in spec &&
         typeof spec.secondaryLoginIdentifierKey === "string"
           ? spec.secondaryLoginIdentifierKey
           : undefined,
-      spec,
+      specId: spec.id,
       role: "secondary",
     }),
   };
@@ -288,22 +338,24 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
   const targets: PlanTarget[] = [];
   const skipped: SkippedTarget[] = [];
 
-  for (const spec of PDSLAB_TARGETS as readonly FlexibleRecord[]) {
-    const specId = String(spec.id);
-    const specMode = String(spec.mode);
-    const specRunnerStatus = String(spec.runnerStatus);
-    const needsLedgerTarget = typeof spec.ledgerTarget === "string";
-    const ledgerTarget = needsLedgerTarget
-      ? ensureTarget(ledger, String(spec.ledgerTarget))
-      : null;
+  for (const spec of PDSLAB_TARGETS) {
+    const specId = spec.id;
+    const specMode = spec.mode;
+    const specRunnerStatus = spec.runnerStatus;
+    const ledgerTarget =
+      "ledgerTarget" in spec && typeof spec.ledgerTarget === "string"
+        ? ensureTarget(ledger, spec.ledgerTarget)
+        : undefined;
     const primaryLedgerTarget =
+      "primaryLedgerTarget" in spec &&
       typeof spec.primaryLedgerTarget === "string"
-        ? ensureTarget(ledger, String(spec.primaryLedgerTarget))
-        : null;
+        ? ensureTarget(ledger, spec.primaryLedgerTarget)
+        : undefined;
     const secondaryLedgerTarget =
+      "secondaryLedgerTarget" in spec &&
       typeof spec.secondaryLedgerTarget === "string"
-        ? ensureTarget(ledger, String(spec.secondaryLedgerTarget))
-        : null;
+        ? ensureTarget(ledger, spec.secondaryLedgerTarget)
+        : undefined;
 
     if (
       specRunnerStatus !== "ready" &&
@@ -321,26 +373,21 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
     let config: FlexibleRecord;
     if (
       spec.mode === "dual" &&
-      spec.primaryLedgerTarget &&
-      spec.secondaryLedgerTarget
+      primaryLedgerTarget !== undefined &&
+      secondaryLedgerTarget !== undefined
     ) {
-      if (!primaryLedgerTarget || !secondaryLedgerTarget) {
-        throw new Error(
-          `cross-PDS target ${specId} is missing its ledger targets`,
-        );
-      }
       config = createCrossPdsDualConfig({
         spec,
         primaryLedgerTarget,
         secondaryLedgerTarget,
       });
     } else if (spec.mode === "dual") {
-      if (!ledgerTarget) {
+      if (ledgerTarget === undefined) {
         throw new Error(`dual target ${specId} is missing its ledger target`);
       }
       config = createDualConfig({ spec, ledgerTarget });
     } else {
-      if (!ledgerTarget) {
+      if (ledgerTarget === undefined) {
         throw new Error(`single target ${specId} is missing its ledger target`);
       }
       config = createSingleConfig({ spec, ledgerTarget });
@@ -356,7 +403,7 @@ const createPlan = (ledger: FlexibleRecord): Plan => {
 
   return {
     generatedAt: new Date().toISOString(),
-    domain: ledger.domain,
+    domain: getUnknown(ledger, "domain"),
     runnableTargets: targets,
     skippedTargets: skipped,
   };
@@ -379,14 +426,14 @@ const writePlan = async ({
         id,
         mode,
         runnerStatus,
-        pdsUrl: config.pdsUrl,
-        primaryPdsUrl: asRecord(config.primary)?.pdsUrl,
-        secondaryPdsUrl: asRecord(config.secondary)?.pdsUrl,
-        artifactsDir: config.artifactsDir,
-        accountSource: config.accountSource,
-        pairGroup: config.pdslabPairGroup,
-        notes: config.pdslabNotes,
-        loginIdentifier: asRecord(config.account)?.loginIdentifier,
+        pdsUrl: getUnknown(config, "pdsUrl"),
+        primaryPdsUrl: getRecord(config.primary)?.pdsUrl,
+        secondaryPdsUrl: getRecord(config.secondary)?.pdsUrl,
+        artifactsDir: getUnknown(config, "artifactsDir"),
+        accountSource: getUnknown(config, "accountSource"),
+        pairGroup: getUnknown(config, "pdslabPairGroup"),
+        notes: getUnknown(config, "pdslabNotes"),
+        loginIdentifier: getRecord(config.account)?.loginIdentifier,
       }),
     ),
     skippedTargets: plan.skippedTargets,
@@ -410,7 +457,7 @@ const writePlan = async ({
 
 const main = async (argv = process.argv): Promise<number> => {
   const args = parseArgs(argv);
-  if (args.help) {
+  if (args.help === true) {
     process.stdout.write(usage);
     return 0;
   }
@@ -440,7 +487,7 @@ const main = async (argv = process.argv): Promise<number> => {
   return 0;
 };
 
-const exitCode = await main(process.argv).catch((error) => {
+const exitCode = await main(process.argv).catch((error: unknown) => {
   process.stderr.write(`${errorMessage(error)}\n`);
   return 1;
 });

@@ -29,11 +29,11 @@ import { createSingleActions } from "./lib/single-actions.js";
 import type {
   FetchJsonResult,
   FetchStatusResult,
-  FlexibleRecord,
-  SingleRunConfig,
   Summary,
+  SingleRunConfig,
 } from "../types.js";
 import { createSingleRunConfig } from "../config.js";
+import { parseJsonRecord } from "../guards.js";
 
 export const runSingleFromConfig = async (
   config: SingleRunConfig,
@@ -63,7 +63,10 @@ export const runSingleFromConfig = async (
   });
   const page = await context.newPage();
 
-  if (config.browserExecutablePath) {
+  if (
+    config.browserExecutablePath !== undefined &&
+    config.browserExecutablePath.length > 0
+  ) {
     summary.notes.push(
       `requested browser executable: ${config.browserExecutablePath}`,
     );
@@ -87,25 +90,33 @@ export const runSingleFromConfig = async (
     }),
   });
 
+  interface TimeoutOptions {
+    timeoutMs?: number;
+  }
+
   const wait = (ms: number): Promise<void> => page.waitForTimeout(ms);
   const fetchJson = (
     url: string,
-    options: FlexibleRecord = {},
-  ): Promise<FetchJsonResult> =>
-    fetchJsonWithTimeout(url, {
+    options: TimeoutOptions = {},
+  ): Promise<FetchJsonResult> => {
+    const timeoutValue = options.timeoutMs;
+    const timeoutMs = typeof timeoutValue === "number" ? timeoutValue : 30000;
+    return fetchJsonWithTimeout(url, {
       headers: { accept: "application/json" },
-      timeoutMs:
-        typeof options["timeoutMs"] === "number" ? options["timeoutMs"] : 30000,
+      timeoutMs,
     });
+  };
 
   const fetchStatus = (
     url: string,
-    options: FlexibleRecord = {},
-  ): Promise<FetchStatusResult> =>
-    fetchStatusWithTimeout(url, {
-      timeoutMs:
-        typeof options["timeoutMs"] === "number" ? options["timeoutMs"] : 30000,
+    options: TimeoutOptions = {},
+  ): Promise<FetchStatusResult> => {
+    const timeoutValue = options.timeoutMs;
+    const timeoutMs = typeof timeoutValue === "number" ? timeoutValue : 30000;
+    return fetchStatusWithTimeout(url, {
+      timeoutMs,
     });
+  };
 
   const pollJson = (
     name: string,
@@ -168,7 +179,7 @@ export const runSingleFromConfigPath = async (
   configPath: string,
 ): Promise<Summary> => {
   const config = createSingleRunConfig(
-    JSON.parse(await fs.readFile(configPath, "utf8")) as FlexibleRecord,
+    parseJsonRecord(await fs.readFile(configPath, "utf8"), "single config"),
   );
   return await runSingleFromConfig(config);
 };
@@ -176,8 +187,8 @@ export const runSingleFromConfigPath = async (
 export const runSingleFromArgv = async (
   argv = process.argv,
 ): Promise<number> => {
-  const configPath = argv[2];
-  if (configPath === undefined) {
+  const configPath = argv[2] ?? "";
+  if (configPath.length === 0) {
     process.stderr.write(
       "usage: node dist/src/browser/run-single.js <config.json>\n",
     );
@@ -187,9 +198,10 @@ export const runSingleFromArgv = async (
   return summary.ok === true ? 0 : 1;
 };
 
+const entryScript = process.argv[1] ?? "";
 const isDirectExecution =
-  Boolean(process.argv[1]) &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  entryScript.length > 0 &&
+  fileURLToPath(import.meta.url) === path.resolve(entryScript);
 
 if (isDirectExecution) {
   const exitCode = await runSingleFromArgv(process.argv);

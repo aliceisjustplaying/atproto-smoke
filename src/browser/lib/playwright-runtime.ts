@@ -5,11 +5,21 @@ let playwright: typeof Playwright;
 const fallbackPlaywrightPath =
   "../../../../tools/browser-automation/node_modules/playwright/index.js";
 
+const importPlaywright = async (
+  modulePath: string,
+): Promise<typeof Playwright> => {
+  const mod: unknown = await import(modulePath);
+  if (typeof mod === "object" && mod !== null && "chromium" in mod) {
+    return mod as typeof Playwright;
+  }
+  throw new Error(`module at ${modulePath} is not a Playwright runtime`);
+};
+
 try {
-  playwright = await import("playwright");
+  playwright = await importPlaywright("playwright");
 } catch (primaryError) {
   try {
-    playwright = await import(fallbackPlaywrightPath);
+    playwright = await importPlaywright(fallbackPlaywrightPath);
   } catch {
     throw new Error(
       [

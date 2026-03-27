@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import {
   buttonText,
   dismissBlockingOverlays,
@@ -5,7 +6,20 @@ import {
   normalizeText,
   pollJsonUntil,
 } from "../runtime-utils.js";
-import type { FlexibleRecord } from "../../../types.js";
+import { isNumber, isRecord, isString } from "../../../guards.js";
+import type {
+  AccountConfig,
+  FlexibleRecord,
+  ProfileCountsSnapshot,
+  RenderedProfileCountsRaw,
+} from "../../../types.js";
+import type {
+  DualActions,
+  DualActionsOptions,
+  PageAuthActions,
+  PageFeedActions,
+  PageProfileEditActions,
+} from "../browser-types.js";
 import { createPageAuthActions } from "../page-auth-actions.js";
 import { createPageFeedActions } from "../page-feed-actions.js";
 import { createPageProfileEditActions } from "../page-profile-edit-actions.js";
@@ -19,39 +33,54 @@ export const createDualProfileActions = ({
   fetchJson,
   fetchStatus,
   avatarPngBase64,
-}) => {
-  const publicCheckTimeoutMs = config.publicCheckTimeoutMs ?? 180000;
-  const authActions = createPageAuthActions({
+}: DualActionsOptions): Pick<
+  DualActions,
+  | "login"
+  | "completeAgeAssuranceIfNeeded"
+  | "gotoProfile"
+  | "waitForProfileHandle"
+  | "verifyProfileCountsAfterReload"
+  | "readProfileCountsAfterReload"
+  | "composePost"
+  | "composePostWithImage"
+  | "editProfile"
+  | "verifyLocalProfileAfterEdit"
+  | "verifyPublicProfileAfterEdit"
+> => {
+  const publicCheckTimeoutMs = config.publicCheckTimeoutMs;
+  const authActions: PageAuthActions = createPageAuthActions({
     appUrl: config.appUrl,
     appBaseUrl,
     wait,
     loginToBlueskyApp,
   });
-  const feedActions = createPageFeedActions({
+  const feedActions: PageFeedActions = createPageFeedActions({
     wait,
     normalizeText,
     buttonText,
     dismissBlockingOverlays,
   });
-  const profileEditActions = createPageProfileEditActions({
-    artifactsDir: config.artifactsDir,
-    wait,
-    dismissBlockingOverlays,
-    avatarPngBase64,
-    notes: summary.notes,
-  });
+  const profileEditActions: PageProfileEditActions =
+    createPageProfileEditActions({
+      artifactsDir: config.artifactsDir,
+      wait,
+      dismissBlockingOverlays,
+      avatarPngBase64,
+      notes: summary.notes,
+    });
 
-  const parseCompactCount = (raw) => {
-    if (typeof raw !== "string") {
+  const parseCompactCount = (raw: unknown): number | undefined => {
+    if (!isString(raw)) {
       return undefined;
     }
     const normalized = raw.replace(/,/g, "").trim();
-    const match = normalized.match(/^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i);
+    const match = /^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i.exec(normalized);
     if (!match) {
       return undefined;
     }
     const base = Number(match[1]);
-    const suffix = (match[2] || "").toUpperCase();
+    const suffixMatch = /[KMB]$/i.exec(normalized);
+    const suffix = suffixMatch?.[0]?.toUpperCase();
     const multiplier =
       suffix === "K"
         ? 1_000
@@ -63,10 +92,10 @@ export const createDualProfileActions = ({
     return Math.round(base * multiplier);
   };
 
-  const login = async (page, account) => {
-    const loginIdentifier = account.loginIdentifier || account.handle;
+  const login = async (page: Page, account: AccountConfig): Promise<void> => {
+    const loginIdentifier = account.loginIdentifier ?? account.handle;
     await authActions.login(page, {
-      pdsHost: account.pdsHost || config.pdsHost,
+      pdsHost: account.pdsHost ?? config.pdsHost,
       loginIdentifier,
       password: account.password,
       notes: summary.notes,
@@ -74,7 +103,10 @@ export const createDualProfileActions = ({
     });
   };
 
-  const completeAgeAssuranceIfNeeded = (page, account) =>
+  const completeAgeAssuranceIfNeeded = (
+    page: Page,
+    account: AccountConfig,
+  ): Promise<void> =>
     authActions.completeAgeAssuranceIfNeeded(page, {
       birthdate: account.birthdate,
       notes: summary.notes,
@@ -85,36 +117,45 @@ export const createDualProfileActions = ({
 
   const waitForProfileHandle = authActions.waitForProfileHandle;
 
-  const readRenderedProfileCounts = async (page) => {
-    const raw = await page.evaluate(() => {
-      const normalize = (text) => (text || "").replace(/\s+/g, " ").trim();
-      const entries = Array.from(document.querySelectorAll("a[href]")).map(
-        (node) => ({
-          href: node.getAttribute("href") || "",
-          text: normalize(node.textContent || ""),
-        }),
+  const readRenderedProfileCounts = async (
+    page: Page,
+  ): Promise<{
+    followersCount: number;
+    followsCount: number;
+    raw: RenderedProfileCountsRaw;
+  }> => {
+    const raw = await page.evaluate<RenderedProfileCountsRaw>(() => {
+      const entries = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>("a[href]"),
+      ).map((node) => ({
+        href: node.getAttribute("href") ?? "",
+        text: node.innerText.replace(/\s+/g, " ").trim(),
+      }));
+      const followersEntry = entries.find((entry) =>
+        /\/followers(?:[/?#]|$)/i.test(entry.href),
       );
-      const pick = (pattern) =>
-        entries.find((entry) => pattern.test(entry.href))?.text;
-      const bodyText = normalize(document.body?.innerText || "");
-      const followersFallback = bodyText.match(
-        /([0-9][0-9.,]*\s*[KMB]?)\s+followers?/i,
-      )?.[0];
-      const followsFallback = bodyText.match(
-        /([0-9][0-9.,]*\s*[KMB]?)\s+(?:following|follows?)/i,
-      )?.[0];
+      const followsEntry = entries.find((entry) =>
+        /\/follows(?:[/?#]|$)/i.test(entry.href),
+      );
+      const bodyText = document.body.innerText.replace(/\s+/g, " ").trim();
+      const followersFallbackMatch =
+        /([0-9][0-9.,]*\s*[KMB]?)\s+followers?/i.exec(bodyText);
+      const followsFallbackMatch =
+        /([0-9][0-9.,]*\s*[KMB]?)\s+(?:following|follows?)/i.exec(bodyText);
+      const followersFallback = followersFallbackMatch?.[0];
+      const followsFallback = followsFallbackMatch?.[0];
       return {
-        followersText: pick(/\/followers(?:[/?#]|$)/i) || followersFallback,
-        followsText: pick(/\/follows(?:[/?#]|$)/i) || followsFallback,
+        followersText: followersEntry?.text ?? followersFallback,
+        followsText: followsEntry?.text ?? followsFallback,
       };
     });
 
-    const parseLinkedCount = (text, label) => {
-      if (typeof text !== "string" || !text.length) {
+    const parseLinkedCount = (text: unknown, label: string): number => {
+      if (!isString(text) || text.length === 0) {
         throw new Error(`rendered ${label} link text not found`);
       }
       const normalized = text.replace(/\s+/g, " ").trim();
-      const match = normalized.match(/([0-9][0-9.,]*\s*[KMB]?)/i);
+      const match = /([0-9][0-9.,]*\s*[KMB]?)/i.exec(normalized);
       if (!match) {
         throw new Error(
           `unable to parse rendered ${label} count from "${normalized}"`,
@@ -137,52 +178,68 @@ export const createDualProfileActions = ({
   };
 
   const readProfileCountsSnapshot = async (
-    page,
-    viewerAccount,
-    profileHandle,
-  ) => {
+    page: Page,
+    viewerAccount: AccountConfig,
+    profileHandle: string,
+  ): Promise<ProfileCountsSnapshot> => {
     await gotoProfile(page, profileHandle);
     await waitForProfileHandle(page, profileHandle);
     const rendered = await readRenderedProfileCounts(page);
     const apiResult = await xrpcJson("app.bsky.actor.getProfile", {
-      token: viewerAccount?.accessJwt,
-      pdsUrl: viewerAccount?.pdsUrl,
+      token: viewerAccount.accessJwt,
+      pdsUrl: viewerAccount.pdsUrl,
       params: { actor: profileHandle },
       timeoutMs: 15000,
     });
     if (!apiResult.ok) {
       throw new Error(`failed to read profile counts for ${profileHandle}`);
     }
+    const apiJson = isRecord(apiResult.json) ? apiResult.json : {};
     return {
       rendered,
       api: {
-        followersCount: apiResult.json?.followersCount,
-        followsCount: apiResult.json?.followsCount,
+        followersCount: isNumber(apiJson.followersCount)
+          ? apiJson.followersCount
+          : undefined,
+        followsCount: isNumber(apiJson.followsCount)
+          ? apiJson.followsCount
+          : undefined,
       },
     };
   };
 
   const verifyProfileCountsAfterReload = async (
-    page,
-    viewerAccount,
-    profileHandle,
-    expected,
+    page: Page,
+    viewerAccount: AccountConfig,
+    profileHandle: string,
+    expected: { followersCount?: number; followsCount?: number },
     timeoutMs = 30000,
-  ) => {
+  ): Promise<ProfileCountsSnapshot> => {
     const started = Date.now();
-    let snapshot;
+    let lastSnapshot: ProfileCountsSnapshot | undefined;
     while (Date.now() - started < timeoutMs) {
       try {
-        snapshot = await readProfileCountsSnapshot(
+        const snapshot = await readProfileCountsSnapshot(
           page,
           viewerAccount,
           profileHandle,
         );
-        const matches = Object.entries(expected).every(
-          ([key, value]) =>
-            snapshot?.rendered?.[key] === value &&
-            snapshot?.api?.[key] === value,
-        );
+        lastSnapshot = snapshot;
+        const matches = Object.entries(expected).every(([key, value]) => {
+          if (key === "followersCount") {
+            return (
+              snapshot.rendered.followersCount === value &&
+              snapshot.api.followersCount === value
+            );
+          }
+          if (key === "followsCount") {
+            return (
+              snapshot.rendered.followsCount === value &&
+              snapshot.api.followsCount === value
+            );
+          }
+          return true;
+        });
         if (matches) {
           return snapshot;
         }
@@ -193,18 +250,18 @@ export const createDualProfileActions = ({
     }
 
     throw new Error(
-      `profile counts for ${profileHandle} did not converge; expected=${JSON.stringify(expected)} rendered=${JSON.stringify(snapshot?.rendered)} api=${JSON.stringify(snapshot?.api)}`,
+      `profile counts for ${profileHandle} did not converge; expected=${JSON.stringify(expected)} rendered=${JSON.stringify(lastSnapshot?.rendered)} api=${JSON.stringify(lastSnapshot?.api)}`,
     );
   };
 
   const readProfileCountsAfterReload = async (
-    page,
-    viewerAccount,
-    profileHandle,
+    page: Page,
+    viewerAccount: AccountConfig,
+    profileHandle: string,
     timeoutMs = 30000,
-  ) => {
+  ): Promise<ProfileCountsSnapshot> => {
     const started = Date.now();
-    let lastError;
+    let lastError: unknown;
     while (Date.now() - started < timeoutMs) {
       try {
         return await readProfileCountsSnapshot(
@@ -217,15 +274,14 @@ export const createDualProfileActions = ({
         await wait(page, 2000);
       }
     }
-    throw (
-      lastError ||
-      new Error(`failed to read profile counts for ${profileHandle}`)
-    );
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`failed to read profile counts for ${profileHandle}`);
   };
 
   const composePost = feedActions.composePost;
 
-  const uploadComposerMedia = async (page) => {
+  const uploadComposerMedia = async (page: Page): Promise<string> => {
     const mediaFile = await profileEditActions.ensureAvatarFixture();
     const openMedia = page.getByTestId("openMediaBtn").last();
     if (!(await openMedia.count())) {
@@ -239,7 +295,10 @@ export const createDualProfileActions = ({
     return mediaFile;
   };
 
-  const composePostWithImage = async (page, text) => {
+  const composePostWithImage = async (
+    page: Page,
+    text: string,
+  ): Promise<{ mediaFile: string }> => {
     await page
       .locator('[aria-label="Compose new post"]')
       .last()
@@ -257,35 +316,45 @@ export const createDualProfileActions = ({
     return { mediaFile };
   };
 
-  const editProfile = (page, account) =>
+  const editProfile = (
+    page: Page,
+    account: AccountConfig,
+  ): Promise<{ avatarFile: string; profileNote: string }> =>
     profileEditActions.editProfile(page, {
       profileNote: account.profileNote,
       handle: account.handle,
     });
 
-  const verifyLocalProfileAfterEdit = async (account) => {
+  const verifyLocalProfileAfterEdit = async (
+    account: AccountConfig,
+  ): Promise<FlexibleRecord> => {
     const didResult = await xrpcJson("com.atproto.identity.resolveHandle", {
       pdsUrl: account.pdsUrl,
       params: { handle: account.handle },
     });
-    if (!didResult.ok || didResult.json?.did !== account.did) {
+    const didJson = isRecord(didResult.json) ? didResult.json : undefined;
+    if (!didResult.ok || didJson?.did !== account.did) {
       throw new Error(`handle did mismatch for ${account.handle}`);
     }
     const result = await xrpcJson("com.atproto.repo.getRecord", {
       pdsUrl: account.pdsUrl,
       params: {
-        repo: account.did,
+        repo: account.did ?? "",
         collection: "app.bsky.actor.profile",
         rkey: "self",
       },
     });
     if (!result.ok) {
       throw new Error(
-        `profile record lookup failed for ${account.handle}: ${result.status} ${result.text}`,
+        `profile record lookup failed for ${account.handle}: ${String(result.status)} ${result.text}`,
       );
     }
-    const avatarCid = result.json?.value?.avatar?.ref?.$link;
-    const description = result.json?.value?.description;
+    const resultJson = isRecord(result.json) ? result.json : {};
+    const value = isRecord(resultJson.value) ? resultJson.value : {};
+    const avatar = isRecord(value.avatar) ? value.avatar : {};
+    const ref = isRecord(avatar.ref) ? avatar.ref : {};
+    const avatarCid = ref.$link;
+    const description = value.description;
     if (
       description !== account.profileNote ||
       typeof avatarCid !== "string" ||
@@ -298,28 +367,34 @@ export const createDualProfileActions = ({
     return { avatarCid, description };
   };
 
-  const verifyPublicProfileAfterEdit = async (account) => {
+  const verifyPublicProfileAfterEdit = async (
+    account: AccountConfig,
+  ): Promise<FlexibleRecord> => {
     const result = await pollJsonUntil({
       name: `public profile edit indexing for ${account.handle}`,
       buildUrl: () =>
         `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(account.handle)}`,
-      predicate: ({ ok, json }) => {
-        const publicProfile = json as FlexibleRecord;
+      predicate: ({ ok, json }): boolean => {
+        const publicProfile = isRecord(json) ? json : undefined;
+        const avatar = publicProfile?.avatar;
         return (
           ok &&
           publicProfile?.description === account.profileNote &&
-          typeof publicProfile?.avatar === "string" &&
-          publicProfile.avatar.length > 0
+          isString(avatar) &&
+          avatar.length > 0
         );
       },
       timeoutMs: publicCheckTimeoutMs,
       fetchJson,
     });
-    const publicProfile = result.json as FlexibleRecord;
-    const avatarResult = await fetchStatus(String(publicProfile.avatar));
+    const publicProfile = isRecord(result.json) ? result.json : {};
+    if (!isString(publicProfile.avatar)) {
+      throw new Error(`public avatar URL missing for ${account.handle}`);
+    }
+    const avatarResult = await fetchStatus(publicProfile.avatar);
     if (!avatarResult.ok) {
       throw new Error(
-        `public avatar URL returned ${avatarResult.status} for ${account.handle}`,
+        `public avatar URL returned ${String(avatarResult.status)} for ${account.handle}`,
       );
     }
     return {

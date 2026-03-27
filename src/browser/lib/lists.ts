@@ -1,5 +1,38 @@
-export const createListHelpers = ({ appBaseUrl, wait }) => {
-  const waitForListPageReady = async (page, timeout = 30000) => {
+import type { Locator, Page } from "playwright";
+import type { FlexibleRecord } from "../../types.js";
+import type { PageWait } from "./browser-types.js";
+
+interface ListHelpers {
+  openListPage: (page: Page, handle: string, listRkey: string) => Promise<void>;
+  createList: (
+    page: Page,
+    name: string,
+    description: string,
+  ) => Promise<FlexibleRecord>;
+  editCurrentList: (
+    page: Page,
+    name: string,
+    description: string,
+  ) => Promise<FlexibleRecord>;
+  deleteCurrentList: (page: Page) => Promise<FlexibleRecord>;
+  addUserToCurrentList: (page: Page, handle: string) => Promise<FlexibleRecord>;
+  removeUserFromCurrentList: (
+    page: Page,
+    handle: string,
+  ) => Promise<FlexibleRecord>;
+}
+
+export const createListHelpers = ({
+  appBaseUrl,
+  wait,
+}: {
+  appBaseUrl: string;
+  wait: PageWait;
+}): ListHelpers => {
+  const waitForListPageReady = async (
+    page: Page,
+    timeout = 30000,
+  ): Promise<void> => {
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const moreOptions = page.getByTestId("moreOptionsBtn").first();
@@ -15,7 +48,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     throw new Error("list page did not become interactive");
   };
 
-  const openLists = async (page) => {
+  const openLists = async (page: Page): Promise<void> => {
     await page.goto(`${appBaseUrl}/lists`, {
       waitUntil: "domcontentloaded",
       timeout: 60000,
@@ -27,7 +60,11 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     }
   };
 
-  const openListPage = async (page, handle, listRkey) => {
+  const openListPage = async (
+    page: Page,
+    handle: string,
+    listRkey: string,
+  ): Promise<void> => {
     await page.goto(
       `${appBaseUrl}/profile/${encodeURIComponent(handle)}/lists/${encodeURIComponent(listRkey)}`,
       {
@@ -39,7 +76,11 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     await waitForListPageReady(page);
   };
 
-  const fillListEditor = async (page, name, description) => {
+  const fillListEditor = async (
+    page: Page,
+    name: string,
+    description: string,
+  ): Promise<Locator> => {
     const dialog = page.locator('[role="dialog"]').last();
     await dialog.waitFor({ state: "visible", timeout: 15000 });
     await dialog.getByTestId("editListNameInput").fill(name);
@@ -47,7 +88,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return dialog;
   };
 
-  const saveListEditor = async (page) => {
+  const saveListEditor = async (page: Page): Promise<void> => {
     const dialog = page.locator('[role="dialog"]').last();
     const save = dialog.getByTestId("editProfileSaveBtn").last();
     await save.waitFor({ state: "visible", timeout: 15000 });
@@ -72,7 +113,11 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     await wait(page, 3000);
   };
 
-  const createList = async (page, name, description) => {
+  const createList = async (
+    page: Page,
+    name: string,
+    description: string,
+  ): Promise<FlexibleRecord> => {
     await openLists(page);
     await page
       .getByTestId("newUserListBtn")
@@ -85,7 +130,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return { url: page.url() };
   };
 
-  const openCurrentListOptions = async (page) => {
+  const openCurrentListOptions = async (page: Page): Promise<Locator> => {
     const btn = page.getByTestId("moreOptionsBtn").first();
     await btn.waitFor({ state: "visible", timeout: 15000 });
     await btn.click({ noWaitAfter: true });
@@ -94,7 +139,11 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return menu;
   };
 
-  const editCurrentList = async (page, name, description) => {
+  const editCurrentList = async (
+    page: Page,
+    name: string,
+    description: string,
+  ): Promise<FlexibleRecord> => {
     await openCurrentListOptions(page);
     await page
       .getByRole("menuitem", { name: /edit list details/i })
@@ -106,7 +155,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return { listName: name, listDescription: description };
   };
 
-  const deleteCurrentList = async (page) => {
+  const deleteCurrentList = async (page: Page): Promise<FlexibleRecord> => {
     const beforeUrl = page.url();
     await openCurrentListOptions(page);
     await page
@@ -128,14 +177,14 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return { url: page.url() };
   };
 
-  const openListPeopleTab = async (page) => {
+  const openListPeopleTab = async (page: Page): Promise<void> => {
     await page
       .getByRole("tab", { name: /^People$/i })
       .click({ noWaitAfter: true });
     await wait(page, 1500);
   };
 
-  const openAddPeopleToList = async (page) => {
+  const openAddPeopleToList = async (page: Page): Promise<void> => {
     await openListPeopleTab(page);
     const add = page
       .getByRole("button", { name: /start adding people|add people/i })
@@ -149,7 +198,7 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     await wait(page, 1000);
   };
 
-  const closeAddPeopleToList = async (page) => {
+  const closeAddPeopleToList = async (page: Page): Promise<void> => {
     const close = page.getByRole("button", { name: /^close$/i }).last();
     if (await close.count()) {
       await close.click({ noWaitAfter: true }).catch(() => undefined);
@@ -159,7 +208,10 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     await wait(page, 1000);
   };
 
-  const searchAddPeopleList = async (page, handle) => {
+  const searchAddPeopleList = async (
+    page: Page,
+    handle: string,
+  ): Promise<void> => {
     const search = page.getByPlaceholder("Search").last();
     await search.fill(handle.replace(/^@/, ""));
     await wait(page, 2500);
@@ -169,7 +221,10 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
       .waitFor({ state: "visible", timeout: 15000 });
   };
 
-  const addUserToCurrentList = async (page, handle) => {
+  const addUserToCurrentList = async (
+    page: Page,
+    handle: string,
+  ): Promise<FlexibleRecord> => {
     await openAddPeopleToList(page);
     await searchAddPeopleList(page, handle);
     const add = page.getByRole("button", { name: /add user to list/i }).last();
@@ -208,7 +263,10 @@ export const createListHelpers = ({ appBaseUrl, wait }) => {
     return { handle };
   };
 
-  const removeUserFromCurrentList = async (page, handle) => {
+  const removeUserFromCurrentList = async (
+    page: Page,
+    handle: string,
+  ): Promise<FlexibleRecord> => {
     await openListPeopleTab(page);
     const edit = page.getByTestId(`user-${handle}-editBtn`).first();
     await edit.waitFor({ state: "visible", timeout: 15000 });

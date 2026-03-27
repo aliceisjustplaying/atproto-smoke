@@ -1,3 +1,9 @@
+import type {
+  ConsoleEntry,
+  HttpFailureEntry,
+  RequestFailureEntry,
+} from "../../types.js";
+
 export const IGNORED_CONSOLE = [
   /events\.bsky\.app\/.*ERR_BLOCKED_BY_CLIENT/i,
   /slider-vertical/i,
@@ -55,16 +61,18 @@ export const IGNORED_HTTP_FAILURE = [
   { url: /\/xrpc\/app\.bsky\.feed\.getAuthorFeed\?/, status: 400 },
 ];
 
-export const isIgnoredConsoleEntry = (entry) =>
+export const isIgnoredConsoleEntry = (entry: ConsoleEntry): boolean =>
   IGNORED_CONSOLE.some((pattern) => pattern.test(entry.text || ""));
 
-export const isIgnoredRequestFailureEntry = (entry) =>
+export const isIgnoredRequestFailureEntry = (
+  entry: RequestFailureEntry,
+): boolean =>
   IGNORED_REQUEST_FAILURE.some(
     (rule) =>
       rule.url.test(entry.url || "") && rule.error.test(entry.errorText || ""),
   );
 
-export const isIgnoredHttpFailureEntry = (entry) =>
+export const isIgnoredHttpFailureEntry = (entry: HttpFailureEntry): boolean =>
   IGNORED_HTTP_FAILURE.some(
     (rule) =>
       rule.url.test(entry.url || "") &&
