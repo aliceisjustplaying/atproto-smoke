@@ -121,39 +121,47 @@ export const createDualProfileActions = ({
     };
   };
 
+  const readProfileCountsSnapshot = async (page, viewerAccount, profileHandle) => {
+    await gotoProfile(page, profileHandle);
+    await waitForProfileHandle(page, profileHandle);
+    const rendered = await readRenderedProfileCounts(page);
+    const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
+      token: viewerAccount?.accessJwt,
+      pdsUrl: viewerAccount?.pdsUrl,
+      params: { actor: profileHandle },
+      timeoutMs: 15000,
+    });
+    if (!apiResult.ok) {
+      throw new Error(`failed to read profile counts for ${profileHandle}`);
+    }
+    return {
+      rendered,
+      api: {
+        followersCount: apiResult.json?.followersCount,
+        followsCount: apiResult.json?.followsCount,
+      },
+    };
+  };
+
   const verifyProfileCountsAfterReload = async (page, viewerAccount, profileHandle, expected, timeoutMs = 30000) => {
     const started = Date.now();
-    let lastRendered;
-    let lastApi;
+    let snapshot;
     while (Date.now() - started < timeoutMs) {
-      await gotoProfile(page, profileHandle);
-      await waitForProfileHandle(page, profileHandle);
-      lastRendered = await readRenderedProfileCounts(page);
-      const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
-        token: viewerAccount?.accessJwt,
-        pdsUrl: viewerAccount?.pdsUrl,
-        params: { actor: profileHandle },
-        timeoutMs: 15000,
-      });
-      if (apiResult.ok) {
-        lastApi = {
-          followersCount: apiResult.json?.followersCount,
-          followsCount: apiResult.json?.followsCount,
-        };
+      try {
+        snapshot = await readProfileCountsSnapshot(page, viewerAccount, profileHandle);
         const matches = Object.entries(expected).every(([key, value]) =>
-          lastRendered?.[key] === value && lastApi?.[key] === value);
+          snapshot?.rendered?.[key] === value && snapshot?.api?.[key] === value);
         if (matches) {
-          return {
-            rendered: lastRendered,
-            api: lastApi,
-          };
+          return snapshot;
         }
+      } catch {
+        // Retry until the timeout expires.
       }
       await wait(page, 2000);
     }
 
     throw new Error(
-      `profile counts for ${profileHandle} did not converge; expected=${JSON.stringify(expected)} rendered=${JSON.stringify(lastRendered)} api=${JSON.stringify(lastApi)}`,
+      `profile counts for ${profileHandle} did not converge; expected=${JSON.stringify(expected)} rendered=${JSON.stringify(snapshot?.rendered)} api=${JSON.stringify(snapshot?.api)}`,
     );
   };
 
@@ -162,25 +170,7 @@ export const createDualProfileActions = ({
     let lastError;
     while (Date.now() - started < timeoutMs) {
       try {
-        await gotoProfile(page, profileHandle);
-        await waitForProfileHandle(page, profileHandle);
-        const rendered = await readRenderedProfileCounts(page);
-        const apiResult = await xrpcJson('app.bsky.actor.getProfile', {
-          token: viewerAccount?.accessJwt,
-          pdsUrl: viewerAccount?.pdsUrl,
-          params: { actor: profileHandle },
-          timeoutMs: 15000,
-        });
-        if (!apiResult.ok) {
-          throw new Error(`failed to read profile counts for ${profileHandle}`);
-        }
-        return {
-          rendered,
-          api: {
-            followersCount: apiResult.json?.followersCount,
-            followsCount: apiResult.json?.followsCount,
-          },
-        };
+        return await readProfileCountsSnapshot(page, viewerAccount, profileHandle);
       } catch (error) {
         lastError = error;
         await wait(page, 2000);

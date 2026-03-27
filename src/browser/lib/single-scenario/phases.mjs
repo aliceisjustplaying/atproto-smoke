@@ -1,22 +1,24 @@
-export const runSingleBootstrapPhase = async ({
-  step,
-  config,
-  login,
-  completeAgeAssuranceIfNeeded,
-  composePost,
-  verifyPublicHandleResolution,
-  verifyPublicProfile,
-  verifyPublicAuthorFeed,
-  gotoProfile,
-  page,
-  findRowByPrimaryText,
-  ensureLiked,
-  ensureReposted,
-  clickQuote,
-  clickReply,
-  ensureNotLiked,
-  ensureNotReposted,
-}) => {
+export const runSingleBootstrapPhase = async (ctx) => {
+  const {
+    step,
+    config,
+    login,
+    completeAgeAssuranceIfNeeded,
+    composePost,
+    verifyPublicHandleResolution,
+    verifyPublicProfile,
+    verifyPublicAuthorFeed,
+    gotoProfile,
+    page,
+    findRowByPrimaryText,
+    ensureLiked,
+    ensureReposted,
+    clickQuote,
+    clickReply,
+    ensureNotLiked,
+    ensureNotReposted,
+  } = ctx;
+
   await step('login', login);
   await step('age-assurance', completeAgeAssuranceIfNeeded, { optional: true });
   await step('compose-own-post', () => composePost(config.postText));
@@ -60,25 +62,27 @@ export const runSingleBootstrapPhase = async ({
   }, { optional: true });
 };
 
-export const runSingleTargetInteractionPhase = async ({
-  step,
-  config,
-  gotoProfile,
-  maybeFollowTarget,
-  findFirstFeedItem,
-  ensureBookmarked,
-  openSavedPosts,
-  page,
-  ensureLiked,
-  ensureReposted,
-  clickQuote,
-  clickReply,
-  ensureNotLiked,
-  ensureNotReposted,
-  ensureNotBookmarked,
-  maybeUnfollowTarget,
-  openNotifications,
-}) => {
+export const runSingleTargetInteractionPhase = async (ctx) => {
+  const {
+    step,
+    config,
+    gotoProfile,
+    maybeFollowTarget,
+    findFirstFeedItem,
+    ensureBookmarked,
+    openSavedPosts,
+    page,
+    ensureLiked,
+    ensureReposted,
+    clickQuote,
+    clickReply,
+    ensureNotLiked,
+    ensureNotReposted,
+    ensureNotBookmarked,
+    maybeUnfollowTarget,
+    openNotifications,
+  } = ctx;
+
   await step('target-profile', async () => {
     await gotoProfile(config.targetHandle);
   });
@@ -166,14 +170,16 @@ export const runSingleTargetInteractionPhase = async ({
   }, { optional: true });
 };
 
-export const runSingleProfilePhase = async ({
-  step,
-  config,
-  gotoProfile,
-  editProfile,
-  verifyLocalProfileAfterEdit,
-  verifyPublicProfileAfterEdit,
-}) => {
+export const runSingleProfilePhase = async (ctx) => {
+  const {
+    step,
+    config,
+    gotoProfile,
+    editProfile,
+    verifyLocalProfileAfterEdit,
+    verifyPublicProfileAfterEdit,
+  } = ctx;
+
   if (!config.editProfile) {
     return;
   }
@@ -188,13 +194,15 @@ export const runSingleProfilePhase = async ({
   }
 };
 
-export const runSingleCleanupPhase = async ({
-  step,
-  config,
-  gotoProfile,
-  openProfileTab,
-  maybeDeleteOwnPostByText,
-}) => {
+export const runSingleCleanupPhase = async (ctx) => {
+  const {
+    step,
+    config,
+    gotoProfile,
+    openProfileTab,
+    maybeDeleteOwnPostByText,
+  } = ctx;
+
   await step('cleanup-own-posts-tab', async () => {
     await gotoProfile(config.handle);
     await openProfileTab('Posts');

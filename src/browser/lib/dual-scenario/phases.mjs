@@ -3,39 +3,41 @@ const remoteReplyHandleFromUrl = (postUrl) => {
   return match ? decodeURIComponent(match[1]) : undefined;
 };
 
-export const runDualSetupPhase = async ({
-  config,
-  step,
-  primaryPage,
-  secondaryPage,
-  primary,
-  secondary,
-  login,
-  completeAgeAssuranceIfNeeded,
-  createSession,
-  cleanupStaleSmokeArtifacts,
-  composePost,
-  waitForOwnPostRecord,
-  gotoProfile,
-  waitForProfileHandle,
-  findRowByPrimaryText,
-  composePostWithImage,
-  editProfile,
-  verifyLocalProfileAfterEdit,
-  verifyPublicProfileAfterEdit,
-  readProfileCountsAfterReload,
-  createList,
-  waitForOwnListRecord,
-  recordRkey,
-  openListPage,
-  editCurrentList,
-  addUserToCurrentList,
-  waitForOwnListItemRecord,
-  removeUserFromCurrentList,
-  waitForNoOwnRecord,
-  deleteCurrentList,
-  maybeUnfollow,
-}) => {
+export const runDualSetupPhase = async (ctx) => {
+  const {
+    config,
+    step,
+    primaryPage,
+    secondaryPage,
+    primary,
+    secondary,
+    login,
+    completeAgeAssuranceIfNeeded,
+    createSession,
+    cleanupStaleSmokeArtifacts,
+    composePost,
+    waitForOwnPostRecord,
+    gotoProfile,
+    waitForProfileHandle,
+    findRowByPrimaryText,
+    composePostWithImage,
+    editProfile,
+    verifyLocalProfileAfterEdit,
+    verifyPublicProfileAfterEdit,
+    readProfileCountsAfterReload,
+    createList,
+    waitForOwnListRecord,
+    recordRkey,
+    openListPage,
+    editCurrentList,
+    addUserToCurrentList,
+    waitForOwnListItemRecord,
+    removeUserFromCurrentList,
+    waitForNoOwnRecord,
+    deleteCurrentList,
+    maybeUnfollow,
+  } = ctx;
+
   await step('primary-login', () => login(primaryPage, primary), { pageNames: ['primary'] });
   await step('primary-age-assurance', () => completeAgeAssuranceIfNeeded(primaryPage, primary), {
     optional: true,
@@ -238,31 +240,33 @@ export const runDualSetupPhase = async ({
   });
 };
 
-export const runDualPrimaryWavePhase = async ({
-  config,
-  step,
-  primaryPage,
-  secondaryPage,
-  primary,
-  secondary,
-  gotoProfile,
-  waitForProfileHandle,
-  maybeUnfollow,
-  maybeFollow,
-  waitForFollowRecord,
-  verifyProfileCountsAfterReload,
-  findRowByPrimaryText,
-  ensureLiked,
-  ensureBookmarked,
-  openSavedPosts,
-  ensureReposted,
-  clickQuote,
-  clickReply,
-  waitForOwnPostRecord,
-  pollNotifications,
-  openNotifications,
-  waitForNotificationsFeed,
-}) => {
+export const runDualPrimaryWavePhase = async (ctx) => {
+  const {
+    config,
+    step,
+    primaryPage,
+    secondaryPage,
+    primary,
+    secondary,
+    gotoProfile,
+    waitForProfileHandle,
+    maybeUnfollow,
+    maybeFollow,
+    waitForFollowRecord,
+    verifyProfileCountsAfterReload,
+    findRowByPrimaryText,
+    ensureLiked,
+    ensureBookmarked,
+    openSavedPosts,
+    ensureReposted,
+    clickQuote,
+    clickReply,
+    waitForOwnPostRecord,
+    pollNotifications,
+    openNotifications,
+    waitForNotificationsFeed,
+  } = ctx;
+
   const primaryWaveStarted = Date.now() - 1000;
   await step('primary-open-secondary-profile', async () => {
     await gotoProfile(primaryPage, secondary.handle);
@@ -399,30 +403,32 @@ export const runDualPrimaryWavePhase = async ({
   }, { pageNames: ['secondary'] });
 };
 
-export const runDualSecondaryWaveAndSettingsPhase = async ({
-  step,
-  primaryPage,
-  secondaryPage,
-  primary,
-  secondary,
-  gotoProfile,
-  waitForProfileHandle,
-  maybeUnfollow,
-  maybeFollow,
-  waitForFollowRecord,
-  verifyProfileCountsAfterReload,
-  pollNotifications,
-  openNotifications,
-  waitForNotificationsFeed,
-  ensureProfileMuted,
-  ensureProfileUnmuted,
-  findRowByPrimaryText,
-  openReportPostDraft,
-  blockProfile,
-  unblockProfile,
-  setRadioSetting,
-  setCheckboxSetting,
-}) => {
+export const runDualSecondaryWaveAndSettingsPhase = async (ctx) => {
+  const {
+    step,
+    primaryPage,
+    secondaryPage,
+    primary,
+    secondary,
+    gotoProfile,
+    waitForProfileHandle,
+    maybeUnfollow,
+    maybeFollow,
+    waitForFollowRecord,
+    verifyProfileCountsAfterReload,
+    pollNotifications,
+    openNotifications,
+    waitForNotificationsFeed,
+    ensureProfileMuted,
+    ensureProfileUnmuted,
+    findRowByPrimaryText,
+    openReportPostDraft,
+    blockProfile,
+    unblockProfile,
+    setRadioSetting,
+    setCheckboxSetting,
+  } = ctx;
+
   const secondaryWaveStarted = Date.now() - 1000;
   await step('secondary-open-primary-profile', async () => {
     await gotoProfile(secondaryPage, primary.handle);
@@ -559,24 +565,26 @@ export const runDualSecondaryWaveAndSettingsPhase = async ({
   }, { pageNames: ['primary'] });
 };
 
-export const runDualCleanupPhase = async ({
-  config,
-  step,
-  primaryPage,
-  secondaryPage,
-  primary,
-  secondary,
-  gotoProfile,
-  findRowByPrimaryText,
-  ensureNotLiked,
-  ensureNotBookmarked,
-  ensureNotReposted,
-  maybeUnfollow,
-  verifyProfileCountsAfterReload,
-  waitForProfileHandle,
-  openProfileTab,
-  maybeDeleteOwnPostByText,
-}) => {
+export const runDualCleanupPhase = async (ctx) => {
+  const {
+    config,
+    step,
+    primaryPage,
+    secondaryPage,
+    primary,
+    secondary,
+    gotoProfile,
+    findRowByPrimaryText,
+    ensureNotLiked,
+    ensureNotBookmarked,
+    ensureNotReposted,
+    maybeUnfollow,
+    verifyProfileCountsAfterReload,
+    waitForProfileHandle,
+    openProfileTab,
+    maybeDeleteOwnPostByText,
+  } = ctx;
+
   await step('primary-cleanup-unlike-secondary-post', async () => {
     await gotoProfile(primaryPage, secondary.handle);
     const row = await findRowByPrimaryText(primaryPage, secondary.postText, 60000);

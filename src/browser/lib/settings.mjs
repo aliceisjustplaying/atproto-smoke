@@ -15,36 +15,52 @@ export const createSettingsHelpers = ({ appBaseUrl, wait }) => {
     return (await locator.getAttribute('aria-checked')) === 'true';
   };
 
-  const setCheckboxSetting = async (page, route, name, desired) => {
+  const setPersistedSetting = async ({
+    page,
+    route,
+    role,
+    name,
+    desired,
+    verifyError,
+    result,
+  }) => {
     await openSettingRoute(page, route);
-    const locator = roleSetting(page, 'checkbox', name);
-    const current = await settingState(page, 'checkbox', name);
+    const locator = roleSetting(page, role, name);
+    const current = await settingState(page, role, name);
     if (current !== desired) {
       await locator.click({ noWaitAfter: true });
       await wait(page, 2000);
     }
     await openSettingRoute(page, route);
-    const verified = await settingState(page, 'checkbox', name);
+    const verified = await settingState(page, role, name);
     if (verified !== desired) {
-      throw new Error(`checkbox setting ${name} on ${route} expected ${desired} but saw ${verified}`);
+      throw new Error(verifyError(verified));
     }
-    return { desired, verified };
+    return result(verified);
+  };
+
+  const setCheckboxSetting = async (page, route, name, desired) => {
+    return await setPersistedSetting({
+      page,
+      route,
+      role: 'checkbox',
+      name,
+      desired,
+      verifyError: (verified) => `checkbox setting ${name} on ${route} expected ${desired} but saw ${verified}`,
+      result: (verified) => ({ desired, verified }),
+    });
   };
 
   const setRadioSetting = async (page, route, name) => {
-    await openSettingRoute(page, route);
-    const locator = roleSetting(page, 'radio', name);
-    const current = await settingState(page, 'radio', name);
-    if (!current) {
-      await locator.click({ noWaitAfter: true });
-      await wait(page, 2000);
-    }
-    await openSettingRoute(page, route);
-    const verified = await settingState(page, 'radio', name);
-    if (!verified) {
-      throw new Error(`radio setting ${name} on ${route} did not persist`);
-    }
-    return { selected: name };
+    return await setPersistedSetting({
+      page,
+      route,
+      role: 'radio',
+      name,
+      desired: true,
+      verifyError: () => `radio setting ${name} on ${route} did not persist`,
+      result: () => ({ selected: name }),
+    });
   };
 
   return {
