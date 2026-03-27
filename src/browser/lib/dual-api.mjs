@@ -2,20 +2,21 @@ import {
   fetchJsonWithTimeout,
   fetchStatusWithTimeout,
   sleep,
-} from './runtime-utils.mjs';
-import { derivePdsHost } from '../../config.mjs';
+} from "./runtime-utils.mjs";
+import { derivePdsHost } from "../../config.mjs";
 
 export const createDualApiHelpers = ({ config }) => {
   const fetchJson = (url, options = {}) => fetchJsonWithTimeout(url, options);
 
-  const fetchStatus = (url, options = {}) => fetchStatusWithTimeout(url, options);
+  const fetchStatus = (url, options = {}) =>
+    fetchStatusWithTimeout(url, options);
 
   const collectionFromUri = (uri) => {
     // Example: at://did:plc:123/app.bsky.feed.post/3kabc -> app.bsky.feed.post
-    if (typeof uri !== 'string') {
+    if (typeof uri !== "string") {
       return undefined;
     }
-    const parts = uri.split('/');
+    const parts = uri.split("/");
     return parts.length >= 4 ? parts[3] : undefined;
   };
 
@@ -26,11 +27,11 @@ export const createDualApiHelpers = ({ config }) => {
     if (
       record &&
       record.value &&
-      typeof record.value === 'object' &&
-      typeof innerValue === 'object' &&
+      typeof record.value === "object" &&
+      typeof innerValue === "object" &&
       innerValue &&
       record.value.$type === undefined &&
-      typeof innerType === 'string' &&
+      typeof innerType === "string" &&
       (!expectedCollection || innerType === expectedCollection)
     ) {
       return {
@@ -41,7 +42,10 @@ export const createDualApiHelpers = ({ config }) => {
     return record;
   };
 
-  const xrpcJson = async (nsid, { method = 'GET', token, params, body, timeoutMs, pdsUrl } = {}) => {
+  const xrpcJson = async (
+    nsid,
+    { method = "GET", token, params, body, timeoutMs, pdsUrl } = {},
+  ) => {
     const basePdsUrl = pdsUrl || config.pdsUrl;
     const url = new URL(`${basePdsUrl}/xrpc/${nsid}`);
     if (params) {
@@ -49,36 +53,36 @@ export const createDualApiHelpers = ({ config }) => {
         url.searchParams.set(key, value);
       }
     }
-    const headers = { accept: 'application/json' };
+    const headers = { accept: "application/json" };
     if (token) {
       headers.authorization = `Bearer ${token}`;
     }
     if (body !== undefined) {
-      headers['content-type'] = 'application/json';
+      headers["content-type"] = "application/json";
     }
-    const run = (extraHeaders = {}) => fetchJson(url.toString(), {
-      method,
-      headers: {
-        ...headers,
-        ...extraHeaders,
-      },
-      timeoutMs,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const run = (extraHeaders = {}) =>
+      fetchJson(url.toString(), {
+        method,
+        headers: {
+          ...headers,
+          ...extraHeaders,
+        },
+        timeoutMs,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
     const result = await run();
     const shouldRetryWithAppViewProxy =
-      !result.ok &&
-      nsid.startsWith('app.bsky.');
+      !result.ok && nsid.startsWith("app.bsky.");
     if (shouldRetryWithAppViewProxy) {
       return run({
-        'atproto-proxy': 'did:web:api.bsky.app#bsky_appview',
+        "atproto-proxy": "did:web:api.bsky.app#bsky_appview",
       });
     }
     return result;
   };
 
   const listOwnRecords = async (account, collection, limit = 100) => {
-    const result = await xrpcJson('com.atproto.repo.listRecords', {
+    const result = await xrpcJson("com.atproto.repo.listRecords", {
       token: account.accessJwt,
       pdsUrl: account.pdsUrl,
       params: {
@@ -96,17 +100,20 @@ export const createDualApiHelpers = ({ config }) => {
   };
 
   const recordRkey = (recordOrUri) => {
-    const uri = typeof recordOrUri === 'string' ? recordOrUri : recordOrUri?.uri;
-    return uri?.split('/').pop();
+    const uri =
+      typeof recordOrUri === "string" ? recordOrUri : recordOrUri?.uri;
+    return uri?.split("/").pop();
   };
 
   const deleteOwnRecord = async (account, collection, record) => {
     const rkey = recordRkey(record);
     if (!rkey) {
-      throw new Error(`unable to determine rkey for ${collection} on ${account.handle}`);
+      throw new Error(
+        `unable to determine rkey for ${collection} on ${account.handle}`,
+      );
     }
-    const result = await xrpcJson('com.atproto.repo.deleteRecord', {
-      method: 'POST',
+    const result = await xrpcJson("com.atproto.repo.deleteRecord", {
+      method: "POST",
       token: account.accessJwt,
       pdsUrl: account.pdsUrl,
       body: {
@@ -123,7 +130,12 @@ export const createDualApiHelpers = ({ config }) => {
     return { rkey };
   };
 
-  const purgeOwnRecords = async (account, collection, predicate, limit = 100) => {
+  const purgeOwnRecords = async (
+    account,
+    collection,
+    predicate,
+    limit = 100,
+  ) => {
     const records = await listOwnRecords(account, collection, limit);
     const doomed = records.filter(predicate);
     for (const record of doomed) {
@@ -133,7 +145,12 @@ export const createDualApiHelpers = ({ config }) => {
     return doomed.length;
   };
 
-  const waitForOwnRecord = async (account, collection, predicate, timeoutMs = 60000) => {
+  const waitForOwnRecord = async (
+    account,
+    collection,
+    predicate,
+    timeoutMs = 60000,
+  ) => {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const records = await listOwnRecords(account, collection);
@@ -143,27 +160,34 @@ export const createDualApiHelpers = ({ config }) => {
       }
       await sleep(2000);
     }
-    throw new Error(`record not observed for ${account.handle} in ${collection}`);
+    throw new Error(
+      `record not observed for ${account.handle} in ${collection}`,
+    );
   };
 
-  const waitForOwnPostRecord = async (account, text, timeoutMs = 60000) => {
+  const waitForOwnPostRecord = (account, text, timeoutMs = 60000) => {
     return waitForOwnRecord(
       account,
-      'app.bsky.feed.post',
+      "app.bsky.feed.post",
       (record) => record?.value?.text === text,
       timeoutMs,
     );
   };
 
-  const waitForFollowRecord = async (account, subjectDid, timeoutMs = 60000) =>
+  const waitForFollowRecord = (account, subjectDid, timeoutMs = 60000) =>
     waitForOwnRecord(
       account,
-      'app.bsky.graph.follow',
+      "app.bsky.graph.follow",
       (record) => record?.value?.subject === subjectDid,
       timeoutMs,
     );
 
-  const waitForNoOwnRecord = async (account, collection, predicate, timeoutMs = 60000) => {
+  const waitForNoOwnRecord = async (
+    account,
+    collection,
+    predicate,
+    timeoutMs = 60000,
+  ) => {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const records = await listOwnRecords(account, collection);
@@ -172,29 +196,38 @@ export const createDualApiHelpers = ({ config }) => {
       }
       await sleep(2000);
     }
-    throw new Error(`record still present for ${account.handle} in ${collection}`);
+    throw new Error(
+      `record still present for ${account.handle} in ${collection}`,
+    );
   };
 
-  const waitForOwnListRecord = async (account, name, timeoutMs = 60000) =>
+  const waitForOwnListRecord = (account, name, timeoutMs = 60000) =>
     waitForOwnRecord(
       account,
-      'app.bsky.graph.list',
+      "app.bsky.graph.list",
       (record) => record?.value?.name === name,
       timeoutMs,
     );
 
-  const waitForOwnListItemRecord = async (account, listUri, subjectDid, timeoutMs = 60000) =>
+  const waitForOwnListItemRecord = (
+    account,
+    listUri,
+    subjectDid,
+    timeoutMs = 60000,
+  ) =>
     waitForOwnRecord(
       account,
-      'app.bsky.graph.listitem',
-      (record) => record?.value?.list === listUri && record?.value?.subject === subjectDid,
+      "app.bsky.graph.listitem",
+      (record) =>
+        record?.value?.list === listUri &&
+        record?.value?.subject === subjectDid,
       timeoutMs,
     );
 
   const createSession = async (account) => {
     const identifier = account.loginIdentifier || account.handle;
-    const result = await xrpcJson('com.atproto.server.createSession', {
-      method: 'POST',
+    const result = await xrpcJson("com.atproto.server.createSession", {
+      method: "POST",
       pdsUrl: account.pdsUrl,
       body: {
         identifier,
@@ -202,7 +235,9 @@ export const createDualApiHelpers = ({ config }) => {
       },
     });
     if (!result.ok) {
-      throw new Error(`createSession failed for ${identifier}: ${result.status} ${result.text}`);
+      throw new Error(
+        `createSession failed for ${identifier}: ${result.status} ${result.text}`,
+      );
     }
     return result.json;
   };
@@ -217,10 +252,10 @@ export const createDualApiHelpers = ({ config }) => {
     const started = Date.now();
     let last;
     while (Date.now() - started < timeoutMs) {
-      last = await xrpcJson('app.bsky.notification.listNotifications', {
+      last = await xrpcJson("app.bsky.notification.listNotifications", {
         token: account.accessJwt,
         pdsUrl: account.pdsUrl,
-        params: { limit: '100' },
+        params: { limit: "100" },
         timeoutMs: 15000,
       });
       if (last.ok && Array.isArray(last.json?.notifications)) {
@@ -228,7 +263,9 @@ export const createDualApiHelpers = ({ config }) => {
           if (item?.author?.handle !== authorHandle) {
             return false;
           }
-          const indexedAt = Date.parse(item?.indexedAt || item?.record?.createdAt || 0);
+          const indexedAt = Date.parse(
+            item?.indexedAt || item?.record?.createdAt || 0,
+          );
           if (Number.isFinite(minIndexedAt) && indexedAt < minIndexedAt) {
             return false;
           }
@@ -245,7 +282,7 @@ export const createDualApiHelpers = ({ config }) => {
       await sleep(5000);
     }
     throw new Error(
-      `notifications not observed for ${account.handle} within ${timeoutMs}ms; last status=${last?.status ?? 'none'} body=${last?.text ?? ''}`,
+      `notifications not observed for ${account.handle} within ${timeoutMs}ms; last status=${last?.status ?? "none"} body=${last?.text ?? ""}`,
     );
   };
 
@@ -255,54 +292,65 @@ export const createDualApiHelpers = ({ config }) => {
     pdsHost: entry.pdsHost || derivePdsHost(entry.pdsUrl || config.pdsUrl),
     loginIdentifier: entry.loginIdentifier || entry.handle,
     mediaPostText: entry.mediaPostText || `${entry.postText} image`,
-    shortHandle: entry.handle.replace(/^@/, ''),
+    shortHandle: entry.handle.replace(/^@/, ""),
   });
 
   const prepareAccounts = ({ primaryConfig, secondaryConfig, startedAt }) => {
-    const runToken = startedAt.replace(/\D/g, '').slice(0, 14);
+    const runToken = startedAt.replace(/\D/g, "").slice(0, 14);
     const primary = accountFromConfig({
       ...primaryConfig,
       listName: primaryConfig.listName || `Smoke List ${runToken}`,
-      listDescription: primaryConfig.listDescription || `smoke list description ${runToken}`,
-      listUpdatedName: primaryConfig.listUpdatedName || `Updated Smoke List ${runToken}`,
+      listDescription:
+        primaryConfig.listDescription || `smoke list description ${runToken}`,
+      listUpdatedName:
+        primaryConfig.listUpdatedName || `Updated Smoke List ${runToken}`,
       listUpdatedDescription:
-        primaryConfig.listUpdatedDescription || `updated smoke list description ${runToken}`,
+        primaryConfig.listUpdatedDescription ||
+        `updated smoke list description ${runToken}`,
     });
     const secondary = accountFromConfig(secondaryConfig);
     return { primary, secondary };
   };
 
   const stalePostPrefixesFor = (account) => {
-    if (Array.isArray(account.cleanupPostPrefixes) && account.cleanupPostPrefixes.length) {
+    if (
+      Array.isArray(account.cleanupPostPrefixes) &&
+      account.cleanupPostPrefixes.length
+    ) {
       return account.cleanupPostPrefixes;
     }
-    return [account.postText].filter((value) => typeof value === 'string' && value.length > 0);
+    return [account.postText].filter(
+      (value) => typeof value === "string" && value.length > 0,
+    );
   };
 
-  const staleListPrefixes = ['Smoke List ', 'Updated Smoke List '];
+  const staleListPrefixes = ["Smoke List ", "Updated Smoke List "];
 
   const cleanupStaleSmokeArtifacts = async (account) => {
     const postPrefixes = stalePostPrefixesFor(account);
     const deletedPosts = await purgeOwnRecords(
       account,
-      'app.bsky.feed.post',
-      (record) => postPrefixes.some((prefix) => (record?.value?.text || '').startsWith(prefix)),
+      "app.bsky.feed.post",
+      (record) =>
+        postPrefixes.some((prefix) =>
+          (record?.value?.text || "").startsWith(prefix),
+        ),
     );
-    const lists = await listOwnRecords(account, 'app.bsky.graph.list', 100);
+    const lists = await listOwnRecords(account, "app.bsky.graph.list", 100);
     const doomedLists = lists.filter((record) =>
-      staleListPrefixes.some((prefix) => (record?.value?.name || '').startsWith(prefix)),
+      staleListPrefixes.some((prefix) =>
+        (record?.value?.name || "").startsWith(prefix),
+      ),
     );
     const doomedListUris = new Set(doomedLists.map((record) => record.uri));
     const deletedListItems = doomedListUris.size
-      ? await purgeOwnRecords(
-          account,
-          'app.bsky.graph.listitem',
-          (record) => doomedListUris.has(record?.value?.list),
+      ? await purgeOwnRecords(account, "app.bsky.graph.listitem", (record) =>
+          doomedListUris.has(record?.value?.list),
         )
       : 0;
     let deletedLists = 0;
     for (const record of doomedLists) {
-      await deleteOwnRecord(account, 'app.bsky.graph.list', record);
+      await deleteOwnRecord(account, "app.bsky.graph.list", record);
       deletedLists += 1;
       await sleep(250);
     }

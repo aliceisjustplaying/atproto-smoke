@@ -1,18 +1,19 @@
 export const createSettingsHelpers = ({ appBaseUrl, wait }) => {
   const openSettingRoute = async (page, route) => {
     await page.goto(`${appBaseUrl}${route}`, {
-      waitUntil: 'domcontentloaded',
+      waitUntil: "domcontentloaded",
       timeout: 60000,
     });
     await wait(page, 3000);
   };
 
-  const roleSetting = (page, role, name) => page.getByRole(role, { name }).first();
+  const roleSetting = (page, role, name) =>
+    page.getByRole(role, { name }).first();
 
   const settingState = async (page, role, name) => {
     const locator = roleSetting(page, role, name);
-    await locator.waitFor({ state: 'visible', timeout: 15000 });
-    return (await locator.getAttribute('aria-checked')) === 'true';
+    await locator.waitFor({ state: "visible", timeout: 15000 });
+    return (await locator.getAttribute("aria-checked")) === "true";
   };
 
   const setPersistedSetting = async ({
@@ -43,10 +44,11 @@ export const createSettingsHelpers = ({ appBaseUrl, wait }) => {
     return await setPersistedSetting({
       page,
       route,
-      role: 'checkbox',
+      role: "checkbox",
       name,
       desired,
-      verifyError: (verified) => `checkbox setting ${name} on ${route} expected ${desired} but saw ${verified}`,
+      verifyError: (verified) =>
+        `checkbox setting ${name} on ${route} expected ${desired} but saw ${verified}`,
       result: (verified) => ({ desired, verified }),
     });
   };
@@ -55,7 +57,7 @@ export const createSettingsHelpers = ({ appBaseUrl, wait }) => {
     return await setPersistedSetting({
       page,
       route,
-      role: 'radio',
+      role: "radio",
       name,
       desired: true,
       verifyError: () => `radio setting ${name} on ${route} did not persist`,

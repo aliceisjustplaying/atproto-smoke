@@ -1,47 +1,46 @@
-import { createRoleBasedAdapter } from './adapter-builder.mjs';
+import { createRoleBasedAdapter } from "./adapter-builder.mjs";
 
 export const TRANQUIL_PDS_PRIMARY_CLEANUP_PREFIXES = Object.freeze([
-  'tranquil browser smoke ',
+  "tranquil browser smoke ",
 ]);
 
 export const TRANQUIL_PDS_SECONDARY_CLEANUP_PREFIXES = Object.freeze([
-  'tranquil browser secondary ',
+  "tranquil browser secondary ",
 ]);
 
 const tranquilRoleDefaults = (role) => {
-  if (role === 'secondary') {
+  if (role === "secondary") {
     return {
-      postText: 'tranquil browser secondary post',
-      quoteText: 'tranquil browser secondary quote',
-      replyText: 'tranquil browser secondary reply',
-      profileNote: 'tranquil browser secondary profile edit',
+      postText: "tranquil browser secondary post",
+      quoteText: "tranquil browser secondary quote",
+      replyText: "tranquil browser secondary reply",
+      profileNote: "tranquil browser secondary profile edit",
     };
   }
 
   return {
-    postText: 'tranquil browser smoke post',
-    quoteText: 'tranquil browser smoke quote',
-    replyText: 'tranquil browser smoke reply',
-    profileNote: 'tranquil browser smoke profile edit',
+    postText: "tranquil browser smoke post",
+    quoteText: "tranquil browser smoke quote",
+    replyText: "tranquil browser smoke reply",
+    profileNote: "tranquil browser smoke profile edit",
   };
 };
 
-const {
-  adapter: TRANQUIL_PDS_ADAPTER,
-} = createRoleBasedAdapter({
-  name: 'tranquil-pds',
-  description: 'Use tranquil-pds-flavored defaults like cleanup prefixes and hosted example handles.',
-  accountStrategy: 'self-register-or-existing-accounts',
+const { adapter: TRANQUIL_PDS_ADAPTER } = createRoleBasedAdapter({
+  name: "tranquil-pds",
+  description:
+    "Use tranquil-pds-flavored defaults like cleanup prefixes and hosted example handles.",
+  accountStrategy: "self-register-or-existing-accounts",
   notes: [
-    'The standalone suite still expects credentials in the config.',
-    'tranquil-pds can self-register accounts via com.atproto.server.createAccount, but that bootstrap stays outside the generic smoke runner.',
+    "The standalone suite still expects credentials in the config.",
+    "tranquil-pds can self-register accounts via com.atproto.server.createAccount, but that bootstrap stays outside the generic smoke runner.",
   ],
   exampleBase: {
-    pdsUrl: 'https://tranquil.mosphere.at',
-    targetHandle: 'alice.tranquil.mosphere.at',
+    pdsUrl: "https://tranquil.mosphere.at",
+    targetHandle: "alice.tranquil.mosphere.at",
     strictErrors: true,
-    primaryHandle: 'smoke-primary.tranquil.mosphere.at',
-    secondaryHandle: 'smoke-secondary.tranquil.mosphere.at',
+    primaryHandle: "smoke-primary.tranquil.mosphere.at",
+    secondaryHandle: "smoke-secondary.tranquil.mosphere.at",
   },
   roleDefaults: tranquilRoleDefaults,
   primaryCleanupPrefixes: TRANQUIL_PDS_PRIMARY_CLEANUP_PREFIXES,

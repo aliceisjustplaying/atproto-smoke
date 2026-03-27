@@ -1,5 +1,5 @@
-import { loginToBlueskyApp } from '../runtime-utils.mjs';
-import { createPageAuthActions } from '../page-auth-actions.mjs';
+import { loginToBlueskyApp } from "../runtime-utils.mjs";
+import { createPageAuthActions } from "../page-auth-actions.mjs";
 
 export const createSingleAuthActions = ({
   config,
@@ -26,11 +26,11 @@ export const createSingleAuthActions = ({
     });
   };
 
-  const completeAgeAssuranceIfNeeded = async () =>
+  const completeAgeAssuranceIfNeeded = () =>
     actions.completeAgeAssuranceIfNeeded(page, {
       birthdate: config.birthdate,
       notes: summary.notes,
-      noteText: 'Completed age-assurance birthdate gate',
+      noteText: "Completed age-assurance birthdate gate",
     });
 
   const gotoProfile = (handle) => actions.gotoProfile(page, handle);

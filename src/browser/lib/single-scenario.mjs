@@ -3,7 +3,7 @@ import {
   runSingleCleanupPhase,
   runSingleProfilePhase,
   runSingleTargetInteractionPhase,
-} from './single-scenario/phases.mjs';
+} from "./single-scenario/phases.mjs";
 
 export const runSingleScenario = async (ctx) => {
   await runSingleBootstrapPhase(ctx);

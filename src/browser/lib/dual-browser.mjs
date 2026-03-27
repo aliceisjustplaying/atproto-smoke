@@ -1,5 +1,5 @@
-import path from 'node:path';
-import { chromium } from './playwright-runtime.mjs';
+import path from "node:path";
+import { chromium } from "./playwright-runtime.mjs";
 import {
   attachPageLogging,
   buttonText,
@@ -9,15 +9,19 @@ import {
   finalizeSummary,
   launchBrowserWithFallback,
   normalizeText,
-} from './runtime-utils.mjs';
+} from "./runtime-utils.mjs";
 import {
   isIgnoredConsoleEntry,
   isIgnoredHttpFailureEntry,
   isIgnoredRequestFailureEntry,
-} from './failure-rules.mjs';
+} from "./failure-rules.mjs";
 
 export const setupDualBrowser = async ({ config, summary }) => {
-  const browser = await launchBrowserWithFallback({ chromium, config, summary });
+  const browser = await launchBrowserWithFallback({
+    chromium,
+    config,
+    summary,
+  });
   const primaryContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
   });
@@ -27,8 +31,18 @@ export const setupDualBrowser = async ({ config, summary }) => {
   const primaryPage = await primaryContext.newPage();
   const secondaryPage = await secondaryContext.newPage();
 
-  attachPageLogging({ summary, page: primaryPage, pageName: 'primary', xrpcLimit: 300 });
-  attachPageLogging({ summary, page: secondaryPage, pageName: 'secondary', xrpcLimit: 300 });
+  attachPageLogging({
+    summary,
+    page: primaryPage,
+    pageName: "primary",
+    xrpcLimit: 300,
+  });
+  attachPageLogging({
+    summary,
+    page: secondaryPage,
+    pageName: "secondary",
+    xrpcLimit: 300,
+  });
 
   return {
     browser,
@@ -39,10 +53,15 @@ export const setupDualBrowser = async ({ config, summary }) => {
   };
 };
 
-export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryPage }) => {
+export const createDualStepHelpers = ({
+  config,
+  summary,
+  primaryPage,
+  secondaryPage,
+}) => {
   const stepTimeoutMs = Number(config.stepTimeoutMs || 120000);
   const progressEnabled = config.progress !== false;
-  const pageFor = (name) => (name === 'primary' ? primaryPage : secondaryPage);
+  const pageFor = (name) => (name === "primary" ? primaryPage : secondaryPage);
 
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
@@ -60,7 +79,10 @@ export const createDualStepHelpers = ({ config, summary, primaryPage, secondaryP
     captureArtifacts: async ({ name, pageNames, failed }) => {
       const screenshots = {};
       for (const pageName of pageNames) {
-        screenshots[pageName] = await screenshot(pageName, failed ? `${name}-error` : name).catch(() => undefined);
+        screenshots[pageName] = await screenshot(
+          pageName,
+          failed ? `${name}-error` : name,
+        ).catch(() => undefined);
       }
       return { screenshots };
     },
@@ -99,7 +121,9 @@ export const finalizeDualSummary = ({
     isIgnoredHttpFailure,
   });
   return Promise.all([
-    screenshot('primary', 'final').catch(() => undefined),
-    screenshot('secondary', 'final').catch(() => undefined),
-  ]).then(() => closeBrowserSafely({ browser, summary })).then(() => summary);
+    screenshot("primary", "final").catch(() => undefined),
+    screenshot("secondary", "final").catch(() => undefined),
+  ])
+    .then(() => closeBrowserSafely({ browser, summary }))
+    .then(() => summary);
 };

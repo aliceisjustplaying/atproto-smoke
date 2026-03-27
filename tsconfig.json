@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "bin/**/*.mjs",
+    "scripts/**/*.mjs",
+    "src/**/*.mjs",
+    "eslint.config.js",
+    "prettier.config.mjs"
+  ],
+  "exclude": ["node_modules", "data", ".tmp"]
+}

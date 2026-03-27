@@ -1,6 +1,6 @@
-import { BRING_YOUR_OWN_ADAPTER } from './bring-your-own.mjs';
-import { PERLSKY_ADAPTER } from './perlsky.mjs';
-import { TRANQUIL_PDS_ADAPTER } from './tranquil-pds.mjs';
+import { BRING_YOUR_OWN_ADAPTER } from "./bring-your-own.mjs";
+import { PERLSKY_ADAPTER } from "./perlsky.mjs";
+import { TRANQUIL_PDS_ADAPTER } from "./tranquil-pds.mjs";
 
 /**
  * Adapter definitions normalize raw user config into smoke-suite config.
@@ -21,7 +21,7 @@ export const ADAPTERS = Object.freeze({
 
 export const ADAPTER_NAMES = Object.freeze(Object.keys(ADAPTERS));
 
-export const getAdapter = (name = 'bring-your-own') => {
+export const getAdapter = (name = "bring-your-own") => {
   const adapter = ADAPTERS[name];
   if (!adapter) {
     throw new Error(`unsupported adapter: ${name}`);

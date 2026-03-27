@@ -1,7 +1,5 @@
-import {
-  dismissBlockingOverlays,
-} from '../runtime-utils.mjs';
-import { createPageProfileEditActions } from '../page-profile-edit-actions.mjs';
+import { dismissBlockingOverlays } from "../runtime-utils.mjs";
+import { createPageProfileEditActions } from "../page-profile-edit-actions.mjs";
 
 export const createSingleProfileActions = ({
   config,
@@ -23,9 +21,11 @@ export const createSingleProfileActions = ({
 
   const verifyPublicHandleResolution = async () => {
     const result = await pollJson(
-      'public handle resolution',
-      () => `${config.publicApiUrl}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(config.handle)}`,
-      ({ ok, json }) => ok && typeof json?.did === 'string' && json.did.length > 0,
+      "public handle resolution",
+      () =>
+        `${config.publicApiUrl}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(config.handle)}`,
+      ({ ok, json }) =>
+        ok && typeof json?.did === "string" && json.did.length > 0,
       publicCheckTimeoutMs,
     );
     return { did: result.json.did };
@@ -33,13 +33,18 @@ export const createSingleProfileActions = ({
 
   const verifyPublicAuthorFeed = async () => {
     const result = await pollJson(
-      'public author feed indexing',
-      () => `${config.publicApiUrl}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(config.handle)}&limit=20`,
+      "public author feed indexing",
+      () =>
+        `${config.publicApiUrl}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(config.handle)}&limit=20`,
       ({ ok, json }) =>
-        ok && Array.isArray(json?.feed) && json.feed.some((item) => item?.post?.record?.text === config.postText),
+        ok &&
+        Array.isArray(json?.feed) &&
+        json.feed.some((item) => item?.post?.record?.text === config.postText),
       publicCheckTimeoutMs,
     );
-    const matching = result.json.feed.find((item) => item?.post?.record?.text === config.postText);
+    const matching = result.json.feed.find(
+      (item) => item?.post?.record?.text === config.postText,
+    );
     return {
       uri: matching?.post?.uri,
       cid: matching?.post?.cid,
@@ -48,9 +53,11 @@ export const createSingleProfileActions = ({
 
   const verifyPublicProfile = async () => {
     const result = await pollJson(
-      'public profile indexing',
-      () => `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(config.handle)}`,
-      ({ ok, json }) => ok && typeof json?.postsCount === 'number' && json.postsCount > 0,
+      "public profile indexing",
+      () =>
+        `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(config.handle)}`,
+      ({ ok, json }) =>
+        ok && typeof json?.postsCount === "number" && json.postsCount > 0,
       publicCheckTimeoutMs,
     );
     return {
@@ -64,12 +71,13 @@ export const createSingleProfileActions = ({
 
   const verifyPublicProfileAfterEdit = async () => {
     const result = await pollJson(
-      'public profile edit indexing',
-      () => `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(config.handle)}`,
+      "public profile edit indexing",
+      () =>
+        `${config.publicApiUrl}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(config.handle)}`,
       ({ ok, json }) =>
         ok &&
         json?.description === config.profileNote &&
-        typeof json?.avatar === 'string' &&
+        typeof json?.avatar === "string" &&
         json.avatar.length > 0,
       publicCheckTimeoutMs,
     );
@@ -86,20 +94,22 @@ export const createSingleProfileActions = ({
 
   const verifyLocalProfileAfterEdit = async () => {
     const didResult = await pollJson(
-      'local handle resolution after profile edit',
-      () => `${config.pdsUrl}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(config.handle)}`,
-      ({ ok, json }) => ok && typeof json?.did === 'string' && json.did.length > 0,
+      "local handle resolution after profile edit",
+      () =>
+        `${config.pdsUrl}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(config.handle)}`,
+      ({ ok, json }) =>
+        ok && typeof json?.did === "string" && json.did.length > 0,
       30000,
     );
     const did = didResult.json.did;
     const result = await pollJson(
-      'local profile record after edit',
+      "local profile record after edit",
       () =>
         `${config.pdsUrl}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(did)}&collection=app.bsky.actor.profile&rkey=self`,
       ({ ok, json }) =>
         ok &&
         json?.value?.description === config.profileNote &&
-        typeof json?.value?.avatar?.ref?.$link === 'string' &&
+        typeof json?.value?.avatar?.ref?.$link === "string" &&
         json.value.avatar.ref.$link.length > 0,
       30000,
     );
@@ -110,7 +120,8 @@ export const createSingleProfileActions = ({
     };
   };
 
-  const editProfile = () => pageActions.editProfile(page, { profileNote: config.profileNote });
+  const editProfile = () =>
+    pageActions.editProfile(page, { profileNote: config.profileNote });
 
   return {
     verifyPublicHandleResolution,

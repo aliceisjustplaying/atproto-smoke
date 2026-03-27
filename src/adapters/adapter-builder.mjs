@@ -2,7 +2,7 @@ import {
   createAccountConfig,
   createDualRunConfig,
   createSingleRunConfig,
-} from '../config.mjs';
+} from "../config.mjs";
 
 export const createRoleBasedAdapter = ({
   name,
@@ -15,13 +15,9 @@ export const createRoleBasedAdapter = ({
   secondaryCleanupPrefixes,
   dualSuiteDefaults = {},
 }) => {
-  const createAccount = ({
-    role = 'primary',
-    ...account
-  } = {}) => {
-    const cleanupPostPrefixes = role === 'secondary'
-      ? secondaryCleanupPrefixes
-      : primaryCleanupPrefixes;
+  const createAccount = ({ role = "primary", ...account } = {}) => {
+    const cleanupPostPrefixes =
+      role === "secondary" ? secondaryCleanupPrefixes : primaryCleanupPrefixes;
 
     return createAccountConfig({
       cleanupPostPrefixes,
@@ -37,13 +33,13 @@ export const createRoleBasedAdapter = ({
       artifactsDir: `data/browser-smoke/${name}-${mode}`,
     };
 
-    if (mode === 'single') {
+    if (mode === "single") {
       return {
         ...base,
         editProfile: true,
         account: {
           handle: primaryHandle,
-          password: 'replace-me',
+          password: "replace-me",
         },
       };
     }
@@ -52,44 +48,37 @@ export const createRoleBasedAdapter = ({
       ...base,
       primary: {
         handle: primaryHandle,
-        password: 'replace-me',
+        password: "replace-me",
       },
       secondary: {
         handle: secondaryHandle,
-        password: 'replace-me-too',
+        password: "replace-me-too",
       },
     };
   };
 
-  const createSingleConfig = ({
-    account,
-    ...rest
-  } = {}) => {
+  const createSingleConfig = ({ account, ...rest } = {}) => {
     return createSingleRunConfig({
       ...rest,
       adapter: name,
       account: createAccount({
-        role: 'primary',
+        role: "primary",
         ...account,
       }),
     });
   };
 
-  const createDualConfig = ({
-    primary,
-    secondary,
-    ...rest
-  } = {}) => {
+  const createDualConfig = ({ primary, secondary, ...rest } = {}) => {
     return createDualRunConfig({
       ...dualSuiteDefaults,
       ...rest,
       adapter: name,
       primary: createAccount({
-        role: 'primary',
+        role: "primary",
         ...primary,
       }),
       secondary: createAccount({
-        role: 'secondary',
+        role: "secondary",
         ...secondary,
       }),
     });

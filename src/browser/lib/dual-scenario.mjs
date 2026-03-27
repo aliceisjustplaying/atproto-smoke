@@ -3,7 +3,7 @@ import {
   runDualPrimaryWavePhase,
   runDualSecondaryWaveAndSettingsPhase,
   runDualSetupPhase,
-} from './dual-scenario/phases.mjs';
+} from "./dual-scenario/phases.mjs";
 
 export const runDualScenario = async (ctx) => {
   await runDualSetupPhase(ctx);

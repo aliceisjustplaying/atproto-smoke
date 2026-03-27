@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runCliFromArgv } from '../src/cli.mjs';
+import { runCliFromArgv } from "../src/cli.mjs";
 
 try {
   const exitCode = await runCliFromArgv(process.argv);

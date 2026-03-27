@@ -1,16 +1,16 @@
 const DEFAULTS = {
-  appUrl: 'https://bsky.app',
-  publicApiUrl: 'https://public.api.bsky.app',
+  appUrl: "https://bsky.app",
+  publicApiUrl: "https://public.api.bsky.app",
   publicCheckTimeoutMs: 180000,
   stepTimeoutMs: 120000,
-  birthdate: '1990-01-01',
+  birthdate: "1990-01-01",
   headless: true,
   strictErrors: false,
   publicChecks: true,
 };
 
 const requireString = (value, label) => {
-  if (typeof value !== 'string' || value.trim() === '') {
+  if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} is required`);
   }
   return value;
@@ -20,11 +20,11 @@ const optionalString = (value) => {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (typeof value !== 'string') {
-    throw new Error('optional string values must be strings when provided');
+  if (typeof value !== "string") {
+    throw new Error("optional string values must be strings when provided");
   }
   const trimmed = value.trim();
-  return trimmed === '' ? undefined : trimmed;
+  return trimmed === "" ? undefined : trimmed;
 };
 
 const optionalPostUrl = (value, label) => {
@@ -52,12 +52,12 @@ const normalizeCleanupPrefixes = (prefixes) => {
     return [];
   }
   if (!Array.isArray(prefixes)) {
-    throw new Error('cleanupPostPrefixes must be an array when provided');
+    throw new Error("cleanupPostPrefixes must be an array when provided");
   }
   return prefixes
     .map((value) => {
-      if (typeof value !== 'string') {
-        throw new Error('cleanup post prefixes must be strings');
+      if (typeof value !== "string") {
+        throw new Error("cleanup post prefixes must be strings");
       }
       return value.length ? value : undefined;
     })
@@ -87,8 +87,8 @@ export const createAccountConfig = ({
   ...rest
 } = {}) => {
   const normalized = {
-    handle: requireString(handle, 'account.handle'),
-    password: requireString(password, 'account.password'),
+    handle: requireString(handle, "account.handle"),
+    password: requireString(password, "account.password"),
     birthdate: optionalString(birthdate) || DEFAULTS.birthdate,
     cleanupPostPrefixes: normalizeCleanupPrefixes(cleanupPostPrefixes),
     ...rest,
@@ -142,21 +142,24 @@ export const createSuiteConfig = ({
   ...rest
 } = {}) => {
   const normalized = {
-    pdsUrl: requireString(pdsUrl, 'pdsUrl'),
-    artifactsDir: requireString(artifactsDir, 'artifactsDir'),
+    pdsUrl: requireString(pdsUrl, "pdsUrl"),
+    artifactsDir: requireString(artifactsDir, "artifactsDir"),
     appUrl: optionalString(appUrl) || DEFAULTS.appUrl,
     publicApiUrl: optionalString(publicApiUrl) || DEFAULTS.publicApiUrl,
-    publicCheckTimeoutMs: Number(publicCheckTimeoutMs || DEFAULTS.publicCheckTimeoutMs),
+    publicCheckTimeoutMs: Number(
+      publicCheckTimeoutMs || DEFAULTS.publicCheckTimeoutMs,
+    ),
     stepTimeoutMs: Number(stepTimeoutMs || DEFAULTS.stepTimeoutMs),
-    headless: !!headless,
-    strictErrors: !!strictErrors,
-    publicChecks: !!publicChecks,
+    headless: Boolean(headless),
+    strictErrors: Boolean(strictErrors),
+    publicChecks: Boolean(publicChecks),
     ...rest,
   };
 
-  normalized.pdsHost = optionalString(pdsHost) || derivePdsHost(normalized.pdsUrl);
+  normalized.pdsHost =
+    optionalString(pdsHost) || derivePdsHost(normalized.pdsUrl);
   if (!normalized.pdsHost) {
-    throw new Error('pdsHost could not be derived from pdsUrl');
+    throw new Error("pdsHost could not be derived from pdsUrl");
   }
 
   const maybeTarget = optionalString(targetHandle);
@@ -164,7 +167,10 @@ export const createSuiteConfig = ({
     normalized.targetHandle = maybeTarget;
   }
 
-  const maybeRemoteReplyPostUrl = optionalPostUrl(remoteReplyPostUrl, 'remoteReplyPostUrl');
+  const maybeRemoteReplyPostUrl = optionalPostUrl(
+    remoteReplyPostUrl,
+    "remoteReplyPostUrl",
+  );
   if (maybeRemoteReplyPostUrl) {
     normalized.remoteReplyPostUrl = maybeRemoteReplyPostUrl;
   }
@@ -189,12 +195,12 @@ export const createSingleRunConfig = ({
 } = {}) => {
   const suite = createSuiteConfig(rest);
   if (!suite.targetHandle) {
-    throw new Error('targetHandle is required for single-mode runs');
+    throw new Error("targetHandle is required for single-mode runs");
   }
   return {
     ...suite,
     ...createAccountConfig(account),
-    editProfile: !!editProfile,
+    editProfile: Boolean(editProfile),
   };
 };
 

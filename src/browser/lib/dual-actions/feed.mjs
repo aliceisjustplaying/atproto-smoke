@@ -1,6 +1,6 @@
-import { createPageAuthActions } from '../page-auth-actions.mjs';
-import { createPageFeedActions } from '../page-feed-actions.mjs';
-import { dismissBlockingOverlays } from '../runtime-utils.mjs';
+import { createPageAuthActions } from "../page-auth-actions.mjs";
+import { createPageFeedActions } from "../page-feed-actions.mjs";
+import { dismissBlockingOverlays } from "../runtime-utils.mjs";
 
 export const createDualFeedActions = ({
   config,
@@ -13,7 +13,7 @@ export const createDualFeedActions = ({
     appUrl: config.appUrl,
     appBaseUrl,
     wait,
-    loginToBlueskyApp: async () => undefined,
+    loginToBlueskyApp: () => undefined,
   });
   const feedActions = createPageFeedActions({
     wait,
@@ -23,9 +23,9 @@ export const createDualFeedActions = ({
   });
 
   const waitForNotificationsFeed = async (page) => {
-    const feed = page.getByTestId('notifsFeed').first();
+    const feed = page.getByTestId("notifsFeed").first();
     if (await feed.count()) {
-      await feed.waitFor({ state: 'visible', timeout: 15000 });
+      await feed.waitFor({ state: "visible", timeout: 15000 });
       return feed;
     }
     return null;
@@ -33,23 +33,31 @@ export const createDualFeedActions = ({
 
   const openReportPostDraft = async (page, row) => {
     await feedActions.openPostOptions(page, row);
-    await page.getByRole('menuitem', { name: /report post/i }).click({ noWaitAfter: true });
+    await page
+      .getByRole("menuitem", { name: /report post/i })
+      .click({ noWaitAfter: true });
     const dialog = page.locator('[role="dialog"]').last();
-    await dialog.waitFor({ state: 'visible', timeout: 10000 });
-    await dialog.getByRole('button', { name: /create report for other/i }).click({ noWaitAfter: true });
+    await dialog.waitFor({ state: "visible", timeout: 10000 });
+    await dialog
+      .getByRole("button", { name: /create report for other/i })
+      .click({ noWaitAfter: true });
     await wait(page, 1000);
-    const submit = dialog.getByRole('button', { name: /submit report/i }).last();
-    await submit.waitFor({ state: 'visible', timeout: 10000 });
+    const submit = dialog
+      .getByRole("button", { name: /submit report/i })
+      .last();
+    await submit.waitFor({ state: "visible", timeout: 10000 });
     const body = normalizeText(await dialog.textContent());
-    const close = dialog.getByRole('button', { name: /close active dialog/i }).last();
+    const close = dialog
+      .getByRole("button", { name: /close active dialog/i })
+      .last();
     if (await close.count()) {
       await close.click({ noWaitAfter: true });
     } else {
-      await page.keyboard.press('Escape').catch(() => undefined);
+      await page.keyboard.press("Escape").catch(() => undefined);
     }
     await wait(page, 1000);
     return {
-      note: 'opened report draft without submitting',
+      note: "opened report draft without submitting",
       submitVisible: true,
       body,
     };

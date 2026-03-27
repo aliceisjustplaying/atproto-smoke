@@ -1,7 +1,7 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from './lib/playwright-runtime.mjs';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "./lib/playwright-runtime.mjs";
 import {
   AVATAR_PNG_BASE64,
   attachPageLogging,
@@ -17,18 +17,18 @@ import {
   normalizeText,
   pollJsonUntil,
   sleep,
-} from './lib/runtime-utils.mjs';
+} from "./lib/runtime-utils.mjs";
 import {
   isIgnoredConsoleEntry,
   isIgnoredHttpFailureEntry,
   isIgnoredRequestFailureEntry,
-} from './lib/failure-rules.mjs';
-import { runSingleScenario } from './lib/single-scenario.mjs';
-import { createSingleActions } from './lib/single-actions.mjs';
+} from "./lib/failure-rules.mjs";
+import { runSingleScenario } from "./lib/single-scenario.mjs";
+import { createSingleActions } from "./lib/single-actions.mjs";
 
 export const runSingleFromConfig = async (config) => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
-  const appBaseUrl = config.appUrl.replace(/\/$/, '');
+  const appBaseUrl = config.appUrl.replace(/\/$/, "");
 
   const summary = createBaseSummary({
     appUrl: config.appUrl,
@@ -42,14 +42,20 @@ export const runSingleFromConfig = async (config) => {
   const progressEnabled = config.progress !== false;
   const emitProgress = createProgressEmitter({ enabled: progressEnabled });
 
-  const browser = await launchBrowserWithFallback({ chromium, config, summary });
+  const browser = await launchBrowserWithFallback({
+    chromium,
+    config,
+    summary,
+  });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
   });
   const page = await context.newPage();
 
   if (config.browserExecutablePath) {
-    summary.notes.push(`requested browser executable: ${config.browserExecutablePath}`);
+    summary.notes.push(
+      `requested browser executable: ${config.browserExecutablePath}`,
+    );
   }
 
   attachPageLogging({ summary, page, xrpcLimit: 200 });
@@ -64,23 +70,25 @@ export const runSingleFromConfig = async (config) => {
     summary,
     emitProgress,
     captureArtifacts: async ({ name, failed }) => ({
-      screenshot: await screenshot(failed ? `${name}-error` : name).catch(() => undefined),
+      screenshot: await screenshot(failed ? `${name}-error` : name).catch(
+        () => undefined,
+      ),
     }),
   });
 
   const wait = (ms) => page.waitForTimeout(ms);
-  const fetchJson = async (url, options = {}) =>
+  const fetchJson = (url, options = {}) =>
     fetchJsonWithTimeout(url, {
-      headers: { accept: 'application/json' },
+      headers: { accept: "application/json" },
       timeoutMs: options.timeoutMs ?? 30000,
     });
 
-  const fetchStatus = async (url, options = {}) =>
+  const fetchStatus = (url, options = {}) =>
     fetchStatusWithTimeout(url, {
       timeoutMs: options.timeoutMs ?? 30000,
     });
 
-  const pollJson = async (name, buildUrl, predicate, timeoutMs) =>
+  const pollJson = (name, buildUrl, predicate, timeoutMs) =>
     pollJsonUntil({
       name,
       buildUrl,
@@ -121,11 +129,11 @@ export const runSingleFromConfig = async (config) => {
     isIgnoredRequestFailure: isIgnoredRequestFailureEntry,
     isIgnoredHttpFailure: isIgnoredHttpFailureEntry,
   });
-  await screenshot('final').catch(() => undefined);
+  await screenshot("final").catch(() => undefined);
   await fs.writeFile(
-    path.join(config.artifactsDir, 'summary.json'),
+    path.join(config.artifactsDir, "summary.json"),
     `${JSON.stringify(summary, null, 2)}\n`,
-    'utf8',
+    "utf8",
   );
   console.log(JSON.stringify(summary, null, 2));
   await closeBrowserSafely({ browser, summary });
@@ -133,14 +141,14 @@ export const runSingleFromConfig = async (config) => {
 };
 
 export const runSingleFromConfigPath = async (configPath) => {
-  const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+  const config = JSON.parse(await fs.readFile(configPath, "utf8"));
   return runSingleFromConfig(config);
 };
 
 export const runSingleFromArgv = async (argv = process.argv) => {
   const configPath = argv[2];
   if (!configPath) {
-    console.error('usage: node run-single.mjs <config.json>');
+    console.error("usage: node run-single.mjs <config.json>");
     return 2;
   }
   const summary = await runSingleFromConfigPath(configPath);
@@ -148,7 +156,8 @@ export const runSingleFromArgv = async (argv = process.argv) => {
 };
 
 const isDirectExecution =
-  !!process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  Boolean(process.argv[1]) &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isDirectExecution) {
   const exitCode = await runSingleFromArgv(process.argv);

@@ -1,17 +1,25 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { setupDualBrowser, createDualStepHelpers, finalizeDualSummary } from './lib/dual-browser.mjs';
-import { createDualApiHelpers } from './lib/dual-api.mjs';
-import { createListHelpers } from './lib/lists.mjs';
-import { createSettingsHelpers } from './lib/settings.mjs';
-import { runDualScenario } from './lib/dual-scenario.mjs';
-import { createDualActions } from './lib/dual-actions.mjs';
-import { AVATAR_PNG_BASE64, createBaseSummary, sleep } from './lib/runtime-utils.mjs';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  setupDualBrowser,
+  createDualStepHelpers,
+  finalizeDualSummary,
+} from "./lib/dual-browser.mjs";
+import { createDualApiHelpers } from "./lib/dual-api.mjs";
+import { createListHelpers } from "./lib/lists.mjs";
+import { createSettingsHelpers } from "./lib/settings.mjs";
+import { runDualScenario } from "./lib/dual-scenario.mjs";
+import { createDualActions } from "./lib/dual-actions.mjs";
+import {
+  AVATAR_PNG_BASE64,
+  createBaseSummary,
+  sleep,
+} from "./lib/runtime-utils.mjs";
 
 export const runDualFromConfig = async (config) => {
   await fs.mkdir(config.artifactsDir, { recursive: true });
-  const appBaseUrl = config.appUrl.replace(/\/$/, '');
+  const appBaseUrl = config.appUrl.replace(/\/$/, "");
 
   const summary = createBaseSummary({
     appUrl: config.appUrl,
@@ -29,7 +37,10 @@ export const runDualFromConfig = async (config) => {
     summary.notes.push(`account source: ${config.accountSource}`);
   }
 
-  const { browser, primaryPage, secondaryPage } = await setupDualBrowser({ config, summary });
+  const { browser, primaryPage, secondaryPage } = await setupDualBrowser({
+    config,
+    summary,
+  });
   const {
     screenshot,
     normalizeText,
@@ -63,10 +74,10 @@ export const runDualFromConfig = async (config) => {
     addUserToCurrentList,
     removeUserFromCurrentList,
   } = createListHelpers({ appBaseUrl, wait });
-  const {
-    setCheckboxSetting,
-    setRadioSetting,
-  } = createSettingsHelpers({ appBaseUrl, wait });
+  const { setCheckboxSetting, setRadioSetting } = createSettingsHelpers({
+    appBaseUrl,
+    wait,
+  });
 
   const { primary, secondary } = prepareAccounts({
     primaryConfig: config.primary,
@@ -129,23 +140,23 @@ export const runDualFromConfig = async (config) => {
     isIgnoredHttpFailure,
   });
   await fs.writeFile(
-    path.join(config.artifactsDir, 'summary.json'),
+    path.join(config.artifactsDir, "summary.json"),
     `${JSON.stringify(summary, null, 2)}\n`,
-    'utf8',
+    "utf8",
   );
   console.log(JSON.stringify(summary, null, 2));
   return summary;
 };
 
 export const runDualFromConfigPath = async (configPath) => {
-  const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+  const config = JSON.parse(await fs.readFile(configPath, "utf8"));
   return runDualFromConfig(config);
 };
 
 export const runDualFromArgv = async (argv = process.argv) => {
   const configPath = argv[2];
   if (!configPath) {
-    console.error('usage: node run-dual.mjs <config.json>');
+    console.error("usage: node run-dual.mjs <config.json>");
     return 2;
   }
   const summary = await runDualFromConfigPath(configPath);
@@ -153,7 +164,8 @@ export const runDualFromArgv = async (argv = process.argv) => {
 };
 
 const isDirectExecution =
-  !!process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  Boolean(process.argv[1]) &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isDirectExecution) {
   const exitCode = await runDualFromArgv(process.argv);

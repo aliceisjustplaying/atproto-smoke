@@ -7,12 +7,24 @@
   "scripts": {
     "help": "node bin/atproto-smoke.mjs --help",
     "list-adapters": "node bin/atproto-smoke.mjs list-adapters",
+    "lint": "eslint .",
+    "typecheck": "tsc --project tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "print-example:dual": "node bin/atproto-smoke.mjs print-example --mode dual",
     "write:pdslab-configs": "node scripts/write-pdslab-configs.mjs",
     "validate:example:single": "node bin/atproto-smoke.mjs validate --mode single --config examples/bring-your-own-single.json",
     "validate:example:dual": "node bin/atproto-smoke.mjs validate --mode dual --config examples/bring-your-own-dual.json",
     "validate:example:perlsky": "node bin/atproto-smoke.mjs validate --mode dual --adapter perlsky --config examples/perlsky-dual.json",
     "validate:example:tranquil-pds": "node bin/atproto-smoke.mjs validate --mode dual --adapter tranquil-pds --config examples/tranquil-pds-dual.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^24.7.2",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
+    "prettier": "^3.8.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20"
